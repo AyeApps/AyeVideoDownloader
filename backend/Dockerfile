@@ -19,7 +19,7 @@ WORKDIR /app
 
 # ffmpeg + yt-dlp en producción
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /usr/local/lib/python3.13/site-packages \
                     /usr/local/lib/python3.13/site-packages
 
