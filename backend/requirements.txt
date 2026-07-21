@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+motor
+beanie
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+slowapi
+yt-dlp
+sse-starlette
+ruff
+pytest
+pytest-asyncio
+httpx
