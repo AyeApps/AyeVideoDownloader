@@ -55,9 +55,9 @@ class DownloadService:
         output_template = str(output_dir / "%(title)s.%(ext)s")
         
         if job.format == "audioMP3":
-            return ["-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]
+            return ["--js-runtimes", "nodejs", "-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]
         
-        return ["-f", job.format_string, "--merge-output-format", "mp4",
+        return ["--js-runtimes", "nodejs", "-f", job.format_string, "--merge-output-format", "mp4",
                 "--newline", "-o", output_template, job.url]
 
     @staticmethod
