@@ -30,21 +30,33 @@ struct AuthView: View {
                         .frame(width: 300)
                 }
                 
-                Button(action: {
-                    Task {
-                        await viewModel.login()
+                HStack {
+                    Button(action: {
+                        Task {
+                            await viewModel.login()
+                        }
+                    }) {
+                        if viewModel.isLoading {
+                            ProgressView().scaleEffect(0.5).frame(maxWidth: .infinity)
+                        } else {
+                            Text("Iniciar Sesión").frame(maxWidth: .infinity)
+                        }
                     }
-                }) {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Iniciar Sesión")
-                            .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderedProminent)
+                    
+                    Button(action: {
+                        Task {
+                            await viewModel.register()
+                        }
+                    }) {
+                        if viewModel.isLoading {
+                            ProgressView().scaleEffect(0.5).frame(maxWidth: .infinity)
+                        } else {
+                            Text("Crear cuenta").frame(maxWidth: .infinity)
+                        }
                     }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.borderedProminent)
                 .frame(width: 300)
                 .disabled(viewModel.isLoading || viewModel.email.isEmpty || viewModel.password.isEmpty)
             }
