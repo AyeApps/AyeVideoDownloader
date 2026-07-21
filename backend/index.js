@@ -57,7 +57,7 @@ app.post('/api/download', async (req, res) => {
             return res.status(401).json({ error: 'Missing Authorization header' });
         }
         
-        const response = await axios.post(`${PYTHON_API_URL}/downloads`, req.body, {
+        const response = await axios.post(`${PYTHON_API_URL}/downloads/`, req.body, {
             headers: { Authorization: authHeader }
         });
         
@@ -65,6 +65,41 @@ app.post('/api/download', async (req, res) => {
     } catch (error) {
         console.error("Download error:", error.response?.data || error.message);
         res.status(error.response?.status || 500).json({ error: 'Download failed via Railway API' });
+    }
+});
+
+app.get('/api/download/:jobId', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        const { jobId } = req.params;
+        const response = await axios.get(`${PYTHON_API_URL}/downloads/${jobId}`, {
+            headers: authHeader ? { Authorization: authHeader } : {}
+        });
+        return res.json(response.data);
+    } catch (error) {
+        res.status(error.response?.status || 500).json({ error: 'Failed to fetch job status' });
+    }
+});
+
+app.get('/api/download/:jobId/file', async (req, res) => {
+    try {
+        const token = req.query.token;
+        const { jobId } = req.params;
+        
+        const response = await axios({
+            method: 'get',
+            url: `${PYTHON_API_URL}/downloads/${jobId}/file`,
+            responseType: 'stream',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        res.setHeader('Content-Disposition', response.headers['content-disposition'] || `attachment; filename="video_${jobId}.mp4"`);
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+        
+        response.data.pipe(res);
+    } catch (error) {
+        console.error("File download error:", error.message);
+        res.status(error.response?.status || 500).send('File download failed');
     }
 });
 

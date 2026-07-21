@@ -146,12 +146,16 @@ export default function App() {
   }, [isProfileOpen]);
 
   const handleAddLink = async (url) => {
-    if (!url.trim()) return;
+    let rawUrl = url.trim();
+    if (!rawUrl) return;
+    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+      rawUrl = 'https://' + rawUrl;
+    }
     
     const id = Date.now();
     const newDownload = {
       id,
-      url,
+      url: rawUrl,
       type: globalSettings.format,
       name: "DETECTING VIDEO...",
       status: "WAITING",
@@ -215,10 +219,43 @@ export default function App() {
     if (newDownloads.length === 0) setViewState("empty");
   };
 
+  const pollDownloadStatus = async (id, jobId) => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/download/${jobId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      
+      if (data.status === 'DONE') {
+        setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "COMPLETED", progress: 100 } : d));
+        
+        // Trigger the browser to save the file
+        const a = document.createElement('a');
+        a.href = `http://localhost:3000/api/download/${jobId}/file?token=${token}`;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+      } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'EXPIRED') {
+        setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
+      } else {
+        setDownloads(prev => prev.map(d => d.id === id ? { 
+          ...d, 
+          progress: data.progress || 0, 
+          status: data.progress_text ? data.progress_text.toUpperCase() : "DOWNLOADING" 
+        } : d));
+        setTimeout(() => pollDownloadStatus(id, jobId), 1500);
+      }
+    } catch (err) {
+      setTimeout(() => pollDownloadStatus(id, jobId), 2000);
+    }
+  };
+
   const handleDownloadAll = async () => {
     const readyItems = downloads.filter(d => d.status === "READY");
     for (const item of readyItems) {
-      setDownloads(prev => prev.map(d => d.id === item.id ? { ...d, status: "DOWNLOADING" } : d));
+      setDownloads(prev => prev.map(d => d.id === item.id ? { ...d, status: "STARTING..." } : d));
       try {
         const res = await fetch('http://localhost:3000/api/download', {
           method: 'POST',
@@ -229,13 +266,17 @@ export default function App() {
           body: JSON.stringify({ 
             url: item.url, 
             format: item.type === 'audio' ? 'audioMP3' : 'videoMP4',
-            selected_format_id: item.quality !== 'fallback' && item.quality !== 'audio_only' ? item.quality : null
+            quality: 'best',
+            codec: 'any',
+            hdr: 'any',
+            selected_format_id: item.quality !== 'fallback' && item.quality !== 'audio_only' ? String(item.quality) : null
           })
         });
         const data = await res.json();
         
-        if (data.success || data.job_id) {
-          setDownloads(prev => prev.map(d => d.id === item.id ? { ...d, status: "COMPLETED", progress: 100 } : d));
+        if (data.job_id) {
+          setDownloads(prev => prev.map(d => d.id === item.id ? { ...d, status: "DOWNLOADING", progress: 0, jobId: data.job_id } : d));
+          pollDownloadStatus(item.id, data.job_id);
         } else {
           setDownloads(prev => prev.map(d => d.id === item.id ? { ...d, status: "ERROR" } : d));
         }
