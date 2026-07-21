@@ -25,7 +25,7 @@ actor NetworkService {
     
     private let baseURL: String = {
         Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
-        ?? "http://localhost:8000/api/v1"
+        ?? "https://ayevideodownloader-production.up.railway.app/api/v1"
     }()
     
     private init() {}
@@ -38,7 +38,9 @@ actor NetworkService {
     ) async throws -> T {
         let (data, _) = try await rawRequest(endpoint, method: method, body: body, requiresAuth: requiresAuth)
         do {
-            return try JSONDecoder().decode(T.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(T.self, from: data)
         } catch {
             throw APIError.decodingError(error)
         }

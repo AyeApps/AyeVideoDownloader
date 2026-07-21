@@ -6,6 +6,12 @@ struct AuthResponse: Decodable {
     let refreshToken: String
 }
 
+struct UserResponse: Decodable {
+    let id: String
+    let email: String
+    let isActive: Bool
+}
+
 @Observable
 class AuthViewModel {
     var email = ""
@@ -65,7 +71,7 @@ class AuthViewModel {
         do {
             let body = ["email": email, "password": password]
             // Registra al usuario
-            let _: [String: String] = try await NetworkService.shared.request(
+            let _: UserResponse = try await NetworkService.shared.request(
                 "/auth/register",
                 method: "POST",
                 body: body,

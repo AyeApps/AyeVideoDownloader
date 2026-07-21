@@ -34,7 +34,7 @@ class FormatService:
     @staticmethod
     async def fetch_formats(url: str) -> FetchFormatsResponse:
         proc = await asyncio.create_subprocess_exec(
-            "yt-dlp", "--js-runtimes", "nodejs", "-j", "--no-playlist", "--skip-download", url,
+            "yt-dlp", "--js-runtimes", "node", "-j", "--no-playlist", "--skip-download", url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
