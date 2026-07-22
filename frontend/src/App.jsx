@@ -222,6 +222,51 @@ export default function App() {
     if (newDownloads.length === 0) setViewState("empty");
   };
 
+  // Construye el nombre del archivo con metadata de calidad
+  // Formato: "Titulo del Video [1080p60 · AV1 · HDR].mp4"
+  const buildFileName = (item) => {
+    const ext = item.type === 'audio' ? 'mp3' : 'mp4';
+    const safeTitle = (item.name || 'video')
+      .replace(/[<>:"/\\|?*]/g, '')   // quitar chars inválidos en Windows/Mac
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+
+    if (item.type === 'audio') {
+      return `${safeTitle} [MP3].mp3`;
+    }
+
+    // Buscar el formato seleccionado en las opciones
+    const selectedOption = (item.options || []).find(o => o.id === item.quality);
+    const raw = selectedOption?.raw;
+
+    if (!raw) return `${safeTitle}.${ext}`;
+
+    // Resolución + FPS
+    const res = raw.height ? `${raw.height}p` : '';
+    const fps = raw.fps && raw.fps > 30 ? `${Math.round(raw.fps)}` : '';
+    const resFps = res + fps; // e.g. "1080p60" o "2160p"
+
+    // Códec legible
+    let codec = '';
+    const vc = (raw.vcodec || '').toLowerCase();
+    if (vc.startsWith('avc') || vc === 'h264')                          codec = 'H.264';
+    else if (vc.startsWith('hev') || vc.startsWith('hvc') || vc === 'h265') codec = 'H.265';
+    else if (vc.startsWith('vp09') || vc.startsWith('vp9') || vc === 'vp9') codec = 'VP9';
+    else if (vc.startsWith('av01') || vc === 'av1')                     codec = 'AV1';
+    else if (vc && vc !== 'none')                                        codec = vc.toUpperCase();
+
+    // HDR
+    const isHDR = raw.dynamic_range && raw.dynamic_range.toUpperCase() !== 'SDR';
+    const hdr = isHDR ? (raw.dynamic_range.toUpperCase() === 'HDR' ? 'HDR' : raw.dynamic_range.toUpperCase()) : '';
+
+    // Armar tag de calidad
+    const parts = [resFps, codec, hdr].filter(Boolean);
+    const tag = parts.length > 0 ? ` [${parts.join(' · ')}]` : '';
+
+    return `${safeTitle}${tag}.${ext}`;
+  };
+
   // Descarga el archivo usando fetch+blob para evitar problemas de navegación
   const triggerFileDownload = async (jobId, fallbackName, fileType) => {
     setDownloadingIds(prev => new Set([...prev, jobId]));
@@ -276,7 +321,8 @@ export default function App() {
         
         // Usar fetch+blob para disparar la descarga sin navegar la página
         const item = downloads.find(d => d.id === id);
-        triggerFileDownload(jobId, data.file_name || item?.name, item?.type);
+        const builtName = item ? buildFileName(item) : (data.file_name || `video_${jobId}.mp4`);
+        triggerFileDownload(jobId, builtName, item?.type);
         
       } else if (data.status === 'failed' || data.status === 'cancelled' || data.status === 'expired') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
@@ -330,7 +376,7 @@ export default function App() {
   const handleSaveCompleted = () => {
     const completed = downloads.filter(d => d.status === "COMPLETED");
     completed.forEach((d, index) => {
-      setTimeout(() => triggerFileDownload(d.jobId, d.name, d.type), index * 800);
+      setTimeout(() => triggerFileDownload(d.jobId, buildFileName(d), d.type), index * 800);
     });
   };
 
@@ -595,7 +641,7 @@ export default function App() {
                           <button 
                             className="geometric-btn primary" 
                             style={{ marginTop: '8px', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', opacity: downloadingIds.has(d.jobId) ? 0.6 : 1 }}
-                            onClick={() => triggerFileDownload(d.jobId, d.name, d.type)}
+                            onClick={() => triggerFileDownload(d.jobId, buildFileName(d), d.type)}
                             disabled={downloadingIds.has(d.jobId)}
                           >
                             {downloadingIds.has(d.jobId) ? (
