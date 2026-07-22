@@ -285,6 +285,21 @@ export default function App() {
     }
   };
 
+  const handleSaveCompleted = () => {
+    const completed = downloads.filter(d => d.status === "COMPLETED");
+    if (completed.length === 1) {
+      const downloadUrl = `${API_BASE_URL}/api/download/${completed[0].jobId}/file?token=${encodeURIComponent(token)}`;
+      window.location.assign(downloadUrl);
+    } else {
+      completed.forEach((d, index) => {
+        setTimeout(() => {
+          const downloadUrl = `${API_BASE_URL}/api/download/${d.jobId}/file?token=${encodeURIComponent(token)}`;
+          window.open(downloadUrl, '_blank');
+        }, index * 800);
+      });
+    }
+  };
+
   const updateQuality = (id, newQuality) => {
     setDownloads(prev => prev.map(d => d.id === id ? { ...d, quality: newQuality } : d));
   };
@@ -573,7 +588,7 @@ export default function App() {
               </div>
               <div className="flex items-center" style={{ gap: '16px' }}>
                 <span style={{ fontSize: '14px', fontWeight: 700, marginRight: '16px' }}>{downloads.length} IN QUEUE</span>
-                <button className="geometric-btn">Formats</button>
+                <button className="geometric-btn" onClick={handleSaveCompleted} disabled={downloads.filter(d => d.status === "COMPLETED").length === 0}>Save Completed</button>
                 <button className="geometric-btn primary" onClick={handleDownloadAll} disabled={downloads.filter(d => d.status === "READY").length === 0}>Download All</button>
               </div>
             </div>
