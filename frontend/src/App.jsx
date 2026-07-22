@@ -44,6 +44,8 @@ export default function App() {
     hdr: 'any'
   });
 
+  const API_BASE_URL = import.meta.env.VITE_BFF_URL || 'http://localhost:3000';
+
   const [token, setToken] = useState(localStorage.getItem('aye_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('aye_email') || '');
   const [userName, setUserName] = useState(localStorage.getItem('aye_name') || '');
@@ -59,7 +61,7 @@ export default function App() {
     setAuthError('');
     try {
       const payload = authMode === 'register' ? { name: authName, email: authEmail, password: authPassword } : { email: authEmail, password: authPassword };
-      const res = await fetch(`http://localhost:3000/api/auth/${authMode}`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/${authMode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -168,7 +170,7 @@ export default function App() {
     setViewState("table");
 
     try {
-      const res = await fetch('http://localhost:3000/api/formats', {
+      const res = await fetch(`${API_BASE_URL}/api/formats`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -221,7 +223,7 @@ export default function App() {
 
   const pollDownloadStatus = async (id, jobId) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/download/${jobId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/download/${jobId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -231,7 +233,7 @@ export default function App() {
         
         // Trigger the browser to save the file
         // Note: Using window.location.assign is more reliable for cross-origin attachment downloads
-        const downloadUrl = `http://localhost:3000/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
+        const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
         window.location.assign(downloadUrl);
         
       } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'EXPIRED') {
@@ -254,7 +256,7 @@ export default function App() {
     for (const item of readyItems) {
       setDownloads(prev => prev.map(d => d.id === item.id ? { ...d, status: "STARTING..." } : d));
       try {
-        const res = await fetch('http://localhost:3000/api/download', {
+        const res = await fetch(`${API_BASE_URL}/api/download`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
