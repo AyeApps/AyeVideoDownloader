@@ -90,11 +90,19 @@ app.get('/api/download/:jobId/file', async (req, res) => {
             method: 'get',
             url: `${PYTHON_API_URL}/downloads/${jobId}/file`,
             responseType: 'stream',
+            timeout: 300000, // 5 minutos para archivos grandes
             headers: { Authorization: `Bearer ${token}` }
         });
         
-        res.setHeader('Content-Disposition', response.headers['content-disposition'] || `attachment; filename="video_${jobId}.mp4"`);
-        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+        // Pasar headers importantes al cliente
+        const contentDisposition = response.headers['content-disposition'] || `attachment; filename="video_${jobId}.mp4"`;
+        const contentType = response.headers['content-type'] || 'application/octet-stream';
+        const contentLength = response.headers['content-length'];
+        
+        res.setHeader('Content-Disposition', contentDisposition);
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length');
+        if (contentLength) res.setHeader('Content-Length', contentLength);
         
         response.data.pipe(res);
     } catch (error) {

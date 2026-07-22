@@ -55,6 +55,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState('login');
   const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState('queue');
+  const [downloadingIds, setDownloadingIds] = useState(new Set()); // IDs con descarga de blob en curso
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -221,6 +222,48 @@ export default function App() {
     if (newDownloads.length === 0) setViewState("empty");
   };
 
+  // Descarga el archivo usando fetch+blob para evitar problemas de navegación
+  const triggerFileDownload = async (jobId, fallbackName, fileType) => {
+    setDownloadingIds(prev => new Set([...prev, jobId]));
+    try {
+      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
+      const res = await fetch(downloadUrl);
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      
+      // Intentar leer el nombre real del archivo desde el header Content-Disposition
+      let fileName = null;
+      const disposition = res.headers.get('Content-Disposition');
+      if (disposition) {
+        const match = disposition.match(/filename[^;=\n]*=(?:(['"])(.*)\1|([^;\n]*))/i);
+        if (match) fileName = (match[2] || match[3] || '').replace(/["']/g, '').trim();
+      }
+      
+      // Fallback: usar el nombre del video con la extensión correcta
+      if (!fileName) {
+        const ext = fileType === 'audio' ? 'mp3' : 'mp4';
+        const safeName = (fallbackName || 'aye_video').replace(/[^a-zA-Z0-9\s\-_]/g, '').trim().slice(0, 80);
+        fileName = `${safeName}.${ext}`;
+      }
+      
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (err) {
+      console.error('Error al descargar archivo:', err);
+      alert('Error al descargar el archivo. Intenta de nuevo.');
+    } finally {
+      setDownloadingIds(prev => { const s = new Set(prev); s.delete(jobId); return s; });
+    }
+  };
+
   const pollDownloadStatus = async (id, jobId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/download/${jobId}`, {
@@ -231,10 +274,9 @@ export default function App() {
       if (data.status === 'DONE') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "COMPLETED", progress: 100 } : d));
         
-        // Trigger the browser to save the file
-        // Note: Using window.location.assign is more reliable for cross-origin attachment downloads
-        const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
-        window.location.assign(downloadUrl);
+        // Usar fetch+blob para disparar la descarga sin navegar la página
+        const item = downloads.find(d => d.id === id);
+        triggerFileDownload(jobId, data.file_name || item?.name, item?.type);
         
       } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'EXPIRED') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
@@ -287,17 +329,9 @@ export default function App() {
 
   const handleSaveCompleted = () => {
     const completed = downloads.filter(d => d.status === "COMPLETED");
-    if (completed.length === 1) {
-      const downloadUrl = `${API_BASE_URL}/api/download/${completed[0].jobId}/file?token=${encodeURIComponent(token)}`;
-      window.location.assign(downloadUrl);
-    } else {
-      completed.forEach((d, index) => {
-        setTimeout(() => {
-          const downloadUrl = `${API_BASE_URL}/api/download/${d.jobId}/file?token=${encodeURIComponent(token)}`;
-          window.open(downloadUrl, '_blank');
-        }, index * 800);
-      });
-    }
+    completed.forEach((d, index) => {
+      setTimeout(() => triggerFileDownload(d.jobId, d.name, d.type), index * 800);
+    });
   };
 
   const updateQuality = (id, newQuality) => {
@@ -560,13 +594,15 @@ export default function App() {
                         {d.status === "COMPLETED" && (
                           <button 
                             className="geometric-btn primary" 
-                            style={{ marginTop: '8px', padding: '4px 8px', fontSize: '10px', display: 'block' }}
-                            onClick={() => {
-                              const downloadUrl = `${API_BASE_URL}/api/download/${d.jobId}/file?token=${encodeURIComponent(token)}`;
-                              window.location.assign(downloadUrl);
-                            }}
+                            style={{ marginTop: '8px', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', opacity: downloadingIds.has(d.jobId) ? 0.6 : 1 }}
+                            onClick={() => triggerFileDownload(d.jobId, d.name, d.type)}
+                            disabled={downloadingIds.has(d.jobId)}
                           >
-                            DESCARGAR MANUAL
+                            {downloadingIds.has(d.jobId) ? (
+                              <><span className="status-dot pulsing" style={{ width: '8px', height: '8px', flexShrink: 0 }} />PREPARANDO...</>
+                            ) : (
+                              <>↓ DESCARGAR ARCHIVO</>
+                            )}
                           </button>
                         )}
                       </td>
