@@ -230,12 +230,9 @@ export default function App() {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "COMPLETED", progress: 100 } : d));
         
         // Trigger the browser to save the file
-        const a = document.createElement('a');
-        a.href = `http://localhost:3000/api/download/${jobId}/file?token=${token}`;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        // Note: Using window.location.assign is more reliable for cross-origin attachment downloads
+        const downloadUrl = `http://localhost:3000/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
+        window.location.assign(downloadUrl);
         
       } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'EXPIRED') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));

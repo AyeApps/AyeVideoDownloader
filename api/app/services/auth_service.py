@@ -24,4 +24,4 @@ class AuthService:
             
         access_token = create_access_token(subject=str(user.id))
         refresh_token = create_refresh_token(subject=str(user.id))
-        return TokenResponse(access_token=access_token, refresh_token=refresh_token, name=user.name)
+        return TokenResponse(access_token=access_token, refresh_token=refresh_token, name=user.name or "")
