@@ -542,6 +542,18 @@ export default function App() {
                           {d.status === "WAITING" || d.status === "DOWNLOADING" ? <span className="status-dot pulsing"></span> : null}
                           <span style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase' }}>{d.status}</span>
                         </span>
+                        {d.status === "COMPLETED" && (
+                          <button 
+                            className="geometric-btn primary" 
+                            style={{ marginTop: '8px', padding: '4px 8px', fontSize: '10px', display: 'block' }}
+                            onClick={() => {
+                              const downloadUrl = `${API_BASE_URL}/api/download/${d.jobId}/file?token=${encodeURIComponent(token)}`;
+                              window.location.assign(downloadUrl);
+                            }}
+                          >
+                            DESCARGAR MANUAL
+                          </button>
+                        )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <button className="icon-btn" onClick={() => removeDownload(d.id)} style={{ width: '40px', height: '40px', margin: '0 auto' }}>
