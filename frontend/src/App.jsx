@@ -271,14 +271,14 @@ export default function App() {
       });
       const data = await res.json();
       
-      if (data.status === 'DONE') {
+      if (data.status === 'done') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "COMPLETED", progress: 100 } : d));
         
         // Usar fetch+blob para disparar la descarga sin navegar la página
         const item = downloads.find(d => d.id === id);
         triggerFileDownload(jobId, data.file_name || item?.name, item?.type);
         
-      } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'EXPIRED') {
+      } else if (data.status === 'failed' || data.status === 'cancelled' || data.status === 'expired') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
       } else {
         setDownloads(prev => prev.map(d => d.id === id ? { 
