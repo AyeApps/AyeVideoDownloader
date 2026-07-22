@@ -275,20 +275,10 @@ export default function App() {
       const res = await fetch(downloadUrl);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       
-      // Intentar leer el nombre real del archivo desde el header Content-Disposition
-      let fileName = null;
-      const disposition = res.headers.get('Content-Disposition');
-      if (disposition) {
-        const match = disposition.match(/filename[^;=\n]*=(?:(['"])(.*)\1|([^;\n]*))/i);
-        if (match) fileName = (match[2] || match[3] || '').replace(/["']/g, '').trim();
-      }
-      
-      // Fallback: usar el nombre del video con la extensión correcta
-      if (!fileName) {
-        const ext = fileType === 'audio' ? 'mp3' : 'mp4';
-        const safeName = (fallbackName || 'aye_video').replace(/[^a-zA-Z0-9\s\-_]/g, '').trim().slice(0, 80);
-        fileName = `${safeName}.${ext}`;
-      }
+      // Usamos siempre el nombre que construimos nosotros (buildFileName).
+      // El header Content-Disposition del servidor viene en RFC 5987 (UTF-8 percent-encoded)
+      // y produce basura como "utf-8OMAR%20COURTZ...", así que lo ignoramos.
+      const fileName = fallbackName || `video_${jobId}.${fileType === 'audio' ? 'mp3' : 'mp4'}`;
       
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
