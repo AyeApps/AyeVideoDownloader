@@ -1,5 +1,5 @@
 from beanie import Document, Indexed
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from enum import Enum
 from pydantic import Field
 from typing import Optional
@@ -37,8 +37,8 @@ class DownloadJob(Document):
     file_size: Optional[int] = None
     error_message: Optional[str] = None
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
 
     class Settings:

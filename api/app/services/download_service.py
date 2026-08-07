@@ -1,7 +1,7 @@
 import asyncio
 import re
 from pathlib import Path
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from app.models.download_job import DownloadJob, JobStatus
 from app.core.logging import get_logger
 from app.core.config import settings
@@ -35,7 +35,7 @@ class DownloadService:
             job.status = JobStatus.DONE
             job.progress = 1.0
             job.progress_text = "Completado"
-            job.expires_at = datetime.now(UTC) + timedelta(minutes=settings.download_ttl_minutes)
+            job.expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.download_ttl_minutes)
             
             # Find the generated file
             for file_path in temp_dir.iterdir():
@@ -55,9 +55,9 @@ class DownloadService:
         output_template = str(output_dir / "%(title)s.%(ext)s")
         
         if job.format == "audioMP3":
-            return ["--js-runtimes", "node", "-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]
+            return ["--js-runtimes", "node", "--no-playlist", "-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]
         
-        return ["--js-runtimes", "node", "-f", job.format_string, "--merge-output-format", "mp4",
+        return ["--js-runtimes", "node", "--no-playlist", "-f", job.format_string, "--merge-output-format", "mp4",
                 "--newline", "-o", output_template, job.url]
 
     @staticmethod

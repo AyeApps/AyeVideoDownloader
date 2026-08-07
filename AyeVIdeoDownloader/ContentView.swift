@@ -2,32 +2,55 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var authViewModel = AuthViewModel()
+    @StateObject private var manager = DownloadManager()
     
     var body: some View {
         Group {
-            if authViewModel.isAuthenticated {
-                MainAppView(authViewModel: authViewModel)
+            if manager.processingMode == .local || authViewModel.isAuthenticated {
+                MainAppView(manager: manager, authViewModel: authViewModel)
             } else {
-                AuthView(viewModel: authViewModel)
+                AuthView(viewModel: authViewModel, manager: manager)
             }
         }
     }
 }
 
 struct MainAppView: View {
-    @StateObject private var manager = DownloadManager()
+    @ObservedObject var manager: DownloadManager
     var authViewModel: AuthViewModel
     
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Button("Cerrar Sesión") {
-                    Task {
-                        await authViewModel.logout()
+            HStack(spacing: 12) {
+                Picker("Modo:", selection: $manager.processingMode) {
+                    ForEach(ProcessingMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
                     }
                 }
-                .padding()
+                .pickerStyle(.segmented)
+                .frame(width: 180)
+                .padding(.leading)
+                
+                Spacer()
+                
+                if manager.processingMode == .cloud {
+                    Button("Cerrar Sesión") {
+                        Task {
+                            await authViewModel.logout()
+                        }
+                    }
+                    .padding()
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: "laptopcomputer")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                        Text("Procesando en local")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                }
             }
             
             AddDownloadBar(manager: manager)

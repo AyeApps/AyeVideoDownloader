@@ -212,6 +212,7 @@ class DownloadItem: ObservableObject, Identifiable {
     
     var jobId: String?
     var sseClient: SSEClient?
+    var localProcess: Process?
     
     var estimatedBytesHistory: [Double] = []
 

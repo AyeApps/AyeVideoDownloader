@@ -31,6 +31,30 @@ const Icons = {
   )
 };
 
+const MarqueeTitle = ({ text }) => {
+  const textRef = React.useRef(null);
+  const [isOverflowing, setIsOverflowing] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkOverflow = () => {
+      if (textRef.current) {
+        setIsOverflowing(textRef.current.scrollWidth > textRef.current.clientWidth);
+      }
+    };
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, [text]);
+
+  return (
+    <div className={`title-marquee-container ${isOverflowing ? 'is-overflowing' : ''}`} style={{ fontSize: '16px' }}>
+      <div className="title-marquee-content" ref={textRef}>
+        {text}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [linkInput, setLinkInput] = useState("");
   const [downloads, setDownloads] = useState([]);
@@ -56,6 +80,16 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState('queue');
   const [downloadingIds, setDownloadingIds] = useState(new Set()); // IDs con descarga de blob en curso
+
+  const handleLogout = () => {
+    setToken('');
+    setUserEmail('');
+    setUserName('');
+    localStorage.removeItem('aye_token');
+    localStorage.removeItem('aye_email');
+    localStorage.removeItem('aye_name');
+    setIsProfileOpen(false);
+  };
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -179,6 +213,7 @@ export default function App() {
         },
         body: JSON.stringify({ url })
       });
+      if (res.status === 401) { handleLogout(); return; }
       const data = await res.json();
       
       const formattedOptions = (data.formats || []).map(f => {
@@ -273,6 +308,7 @@ export default function App() {
     try {
       const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
       const res = await fetch(downloadUrl);
+      if (res.status === 401) { handleLogout(); return; }
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       
       // Usamos siempre el nombre que construimos nosotros (buildFileName).
@@ -304,6 +340,7 @@ export default function App() {
       const res = await fetch(`${API_BASE_URL}/api/download/${jobId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (res.status === 401) { handleLogout(); return; }
       const data = await res.json();
       
       if (data.status === 'done') {
@@ -317,11 +354,36 @@ export default function App() {
       } else if (data.status === 'failed' || data.status === 'cancelled' || data.status === 'expired') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
       } else {
-        setDownloads(prev => prev.map(d => d.id === id ? { 
-          ...d, 
-          progress: data.progress || 0, 
-          status: data.progress_text ? data.progress_text.toUpperCase() : "DOWNLOADING" 
-        } : d));
+        setDownloads(prev => prev.map(d => {
+          if (d.id === id) {
+            let currentPhase = d.currentPhase || 1;
+            let progress1 = d.progress1 !== undefined ? d.progress1 : 0;
+            let progress2 = d.progress2 !== undefined ? d.progress2 : 0;
+            const newProgress = data.progress || 0;
+
+            // Detectar si el progreso bajó de >80% a <20% de golpe (yt-dlp descargando el audio)
+            if (currentPhase === 1 && progress1 > 0.8 && newProgress < 0.2) {
+              currentPhase = 2;
+              progress1 = 1.0;
+            }
+
+            if (currentPhase === 1) {
+              progress1 = newProgress;
+            } else {
+              progress2 = newProgress;
+            }
+
+            return { 
+              ...d, 
+              progress: newProgress,
+              progress1,
+              progress2,
+              currentPhase,
+              status: data.progress_text ? data.progress_text.toUpperCase() : "DOWNLOADING" 
+            };
+          }
+          return d;
+        }));
         setTimeout(() => pollDownloadStatus(id, jobId), 1500);
       }
     } catch (err) {
@@ -349,6 +411,7 @@ export default function App() {
             selected_format_id: item.quality !== 'fallback' && item.quality !== 'audio_only' ? String(item.quality) : null
           })
         });
+        if (res.status === 401) { handleLogout(); return; }
         const data = await res.json();
         
         if (data.job_id) {
@@ -384,67 +447,68 @@ export default function App() {
     }));
   };
 
-  const handleLogout = () => {
-    setToken('');
-    setUserEmail('');
-    setUserName('');
-    localStorage.removeItem('aye_token');
-    localStorage.removeItem('aye_email');
-    localStorage.removeItem('aye_name');
-    setIsProfileOpen(false);
-  };
-
   if (!token) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-primary)' }}>
-        <h1 style={{ color: 'var(--text-primary)', marginBottom: '32px', letterSpacing: '0.1em' }}>AYE VIDEO</h1>
-        
-        <div style={{ display: 'flex', width: '300px', marginBottom: '24px', border: 'var(--border-thick) solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-          <button 
-            style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: authMode === 'login' ? 'var(--text-primary)' : 'transparent', color: authMode === 'login' ? 'var(--bg-primary)' : 'var(--text-primary)', fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s ease' }}
-            onClick={() => { setAuthMode('login'); setAuthError(''); }}
-          >LOGIN</button>
-          <button 
-            style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: authMode === 'register' ? 'var(--text-primary)' : 'transparent', color: authMode === 'register' ? 'var(--bg-primary)' : 'var(--text-primary)', fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s ease' }}
-            onClick={() => { setAuthMode('register'); setAuthError(''); }}
-          >REGISTER</button>
-        </div>
+      <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="centered-view">
+          <div className="tech-frame" style={{ maxWidth: '440px', width: '100%', margin: '0 auto', padding: '0' }}>
+            <div className="tech-frame-content" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div className="tech-badge">STATUS: OFFLINE // AUTH REQUIRED</div>
+              
+              <h1 className="hero-title" style={{ fontSize: '32px', textAlign: 'left', margin: 0 }}>
+                <span style={{ display: 'block', fontSize: '14px', letterSpacing: '0.2em', opacity: 0.5, marginBottom: '16px' }}>SECURE ACCESS</span>
+                AYE VIDEO
+              </h1>
 
-        <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '300px' }}>
-          {authMode === 'register' && (
-            <input 
-              className="geometric-input" 
-              type="text" 
-              placeholder="Name" 
-              value={authName} 
-              onChange={e => setAuthName(e.target.value)} 
-              autoComplete="name"
-              required 
-            />
-          )}
-          <input 
-            className="geometric-input" 
-            type="email" 
-            placeholder="Email" 
-            value={authEmail} 
-            onChange={e => setAuthEmail(e.target.value)} 
-            autoComplete="username"
-            required 
-          />
-          <input 
-            className="geometric-input" 
-            type="password" 
-            placeholder="Password" 
-            value={authPassword} 
-            onChange={e => setAuthPassword(e.target.value)} 
-            autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-            required 
-          />
-          {authError && <div style={{ color: 'var(--error-color, red)', fontSize: '13px', fontWeight: 600 }}>{authError}</div>}
-          <button className="geometric-btn primary" type="submit">
-            {authMode === 'login' ? 'CONTINUE' : 'CREATE ACCOUNT'}
-          </button>
-        </form>
+              <div style={{ display: 'flex', border: 'var(--border-thick) solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', marginTop: '8px' }}>
+                <button 
+                  style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: authMode === 'login' ? 'var(--text-primary)' : 'transparent', color: authMode === 'login' ? 'var(--bg-primary)' : 'var(--text-primary)', fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                  onClick={() => { setAuthMode('login'); setAuthError(''); }}
+                >LOGIN</button>
+                <button 
+                  style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: authMode === 'register' ? 'var(--text-primary)' : 'transparent', color: authMode === 'register' ? 'var(--bg-primary)' : 'var(--text-primary)', fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                  onClick={() => { setAuthMode('register'); setAuthError(''); }}
+                >REGISTER</button>
+              </div>
+
+              <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {authMode === 'register' && (
+                  <input 
+                    className="geometric-input" 
+                    type="text" 
+                    placeholder="NAME" 
+                    value={authName} 
+                    onChange={e => setAuthName(e.target.value)} 
+                    autoComplete="name"
+                    required 
+                  />
+                )}
+                <input 
+                  className="geometric-input" 
+                  type="email" 
+                  placeholder="EMAIL" 
+                  value={authEmail} 
+                  onChange={e => setAuthEmail(e.target.value)} 
+                  autoComplete="username"
+                  required 
+                />
+                <input 
+                  className="geometric-input" 
+                  type="password" 
+                  placeholder="PASSWORD" 
+                  value={authPassword} 
+                  onChange={e => setAuthPassword(e.target.value)} 
+                  autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                  required 
+                />
+                {authError && <div style={{ color: 'var(--error-color, red)', fontSize: '13px', fontWeight: 600, textAlign: 'left' }}>{authError}</div>}
+                <button className="geometric-btn primary hero-btn" type="submit" style={{ width: '100%', marginTop: '8px' }}>
+                  {authMode === 'login' ? 'INITIALIZE SESSION' : 'CREATE ACCOUNT'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -530,7 +594,8 @@ export default function App() {
           </div>
         ) : (
           <div className="table-view">
-            <div className="flex-col" style={{ gap: '16px', marginBottom: '32px' }}>
+            <div className="table-view-content">
+              <div className="flex-col" style={{ gap: '16px', marginBottom: '32px' }}>
               <div className="add-bar" style={{ marginBottom: 0 }}>
                 <input 
                   type="text" 
@@ -549,7 +614,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="flex items-center" style={{ gap: '16px', padding: '16px 24px', backgroundColor: 'var(--bg-primary)', border: 'var(--border-thick) solid var(--border-color)' }}>
+              <div className="global-settings-bar flex items-center" style={{ flexWrap: 'wrap', gap: '16px', padding: '16px 24px', backgroundColor: 'var(--bg-primary)', border: 'var(--border-thick) solid var(--border-color)' }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.1em' }}>GLOBAL:</div>
                 <select className="geometric-select" style={{ padding: '8px 12px', fontSize: '12px', backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }} value={globalSettings.format} onChange={e => setGlobalSettings({...globalSettings, format: e.target.value})}>
                   <option value="video">VIDEO (MP4)</option>
@@ -589,23 +654,21 @@ export default function App() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Target</th>
-                    <th>Quality</th>
-                    <th>Status</th>
-                    <th style={{ width: '80px', textAlign: 'center' }}>X</th>
+                    <th style={{ width: '40%' }}>Target</th>
+                    <th style={{ width: '30%', textAlign: 'center' }}>Quality</th>
+                    <th style={{ width: '20%', textAlign: 'center' }}>Status</th>
+                    <th style={{ width: '10%', minWidth: '60px', textAlign: 'center' }}>X</th>
                   </tr>
                 </thead>
                 <tbody>
                   {downloads.map(d => (
                     <tr key={d.id}>
-                      <td style={{ fontWeight: 700, maxWidth: '400px' }}>
-                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '16px' }}>
-                          {d.name}
-                        </div>
+                      <td data-label="Target" style={{ fontWeight: 700, maxWidth: '400px' }}>
+                        <MarqueeTitle text={d.name} />
                         <div style={{ fontSize: '13px', fontWeight: 500, opacity: 0.7, marginTop: '4px' }}>{d.url}</div>
                       </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <td data-label="Quality" style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}>
                           <select className="geometric-select" style={{ padding: '8px', fontSize: '12px', backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }} value={d.type} onChange={(e) => updateType(d.id, e.target.value)}>
                             <option value="video">VIDEO</option>
                             <option value="audio">AUDIO</option>
@@ -622,15 +685,44 @@ export default function App() {
                           )}
                         </div>
                       </td>
-                      <td>
-                        <span className="status-indicator">
-                          {d.status === "WAITING" || d.status === "DOWNLOADING" ? <span className="status-dot pulsing"></span> : null}
-                          <span style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase' }}>{d.status}</span>
+                      <td data-label="Status" style={{ minWidth: '180px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                          <span className="status-indicator" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {(d.status === "WAITING" || d.status === "DOWNLOADING" || (d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY")) ? <span className="status-dot pulsing"></span> : null}
+                          <span style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }} title={d.status}>
+                            {d.status.startsWith('[DOWNLOAD]') ? `DOWNLOADING ${Math.round((d.progress || 0) * 100)}%` : 
+                             (d.status.startsWith('[MERGER]') || d.status.startsWith('[EXTRACTAUDIO]') ? 'PROCESSING / MERGING...' : d.status)}
+                          </span>
                         </span>
+                        
+                        {(d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY" && d.status !== "WAITING") && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', width: '100%' }}>
+                            <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', position: 'relative', overflow: 'hidden' }}>
+                              <div className={(d.currentPhase === 1 && d.progress >= 1) || d.status.includes('MERG') || d.status.includes('EXTRACT') ? 'progress-bar-processing' : ''} style={{ 
+                                position: 'absolute', top: 0, left: 0, height: '100%', 
+                                backgroundColor: 'var(--text-primary)', 
+                                width: (d.currentPhase === 2) ? '100%' : `${Math.max(5, (d.progress1 || 0) * 100)}%`,
+                                transition: 'width 0.3s ease'
+                              }} />
+                            </div>
+                            
+                            {d.currentPhase === 2 && (
+                              <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', position: 'relative', overflow: 'hidden' }}>
+                                <div className={d.progress >= 1 || d.status.includes('MERG') || d.status.includes('EXTRACT') ? 'progress-bar-processing' : ''} style={{ 
+                                  position: 'absolute', top: 0, left: 0, height: '100%', 
+                                  backgroundColor: 'var(--text-primary)', 
+                                  width: `${Math.max(5, (d.progress2 || 0) * 100)}%`,
+                                  transition: 'width 0.3s ease'
+                                }} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
                         {d.status === "COMPLETED" && (
                           <button 
                             className="geometric-btn primary" 
-                            style={{ marginTop: '8px', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', opacity: downloadingIds.has(d.jobId) ? 0.6 : 1 }}
+                            style={{ marginTop: '8px', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: downloadingIds.has(d.jobId) ? 0.6 : 1, width: '100%' }}
                             onClick={() => triggerFileDownload(d.jobId, buildFileName(d), d.type)}
                             disabled={downloadingIds.has(d.jobId)}
                           >
@@ -641,8 +733,9 @@ export default function App() {
                             )}
                           </button>
                         )}
+                        </div>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td data-label="Remove" style={{ textAlign: 'center' }}>
                         <button className="icon-btn" onClick={() => removeDownload(d.id)} style={{ width: '40px', height: '40px', margin: '0 auto' }}>
                           <Icons.Trash />
                         </button>
@@ -654,15 +747,13 @@ export default function App() {
             </div>
 
             <div className="status-bar flex justify-between items-center">
-              <div className="flex items-center" style={{ gap: '16px', fontSize: '14px', fontWeight: 700 }}>
-                <Icons.Folder />
-                <span>/DOWNLOADS/AYE</span>
-              </div>
+              <div></div>
               <div className="flex items-center" style={{ gap: '16px' }}>
                 <span style={{ fontSize: '14px', fontWeight: 700, marginRight: '16px' }}>{downloads.length} IN QUEUE</span>
                 <button className="geometric-btn" onClick={handleSaveCompleted} disabled={downloads.filter(d => d.status === "COMPLETED").length === 0}>Save Completed</button>
                 <button className="geometric-btn primary" onClick={handleDownloadAll} disabled={downloads.filter(d => d.status === "READY").length === 0}>Download All</button>
               </div>
+            </div>
             </div>
           </div>
         ))}
