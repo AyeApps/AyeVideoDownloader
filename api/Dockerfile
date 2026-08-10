@@ -19,12 +19,13 @@ WORKDIR /app
 
 # ffmpeg + nodejs + deno (JS runtimes for yt-dlp) en producción
 RUN apt-get update && apt-get install -y ffmpeg nodejs curl unzip && rm -rf /var/lib/apt/lists/*
-RUN ln -s /usr/bin/nodejs /usr/local/bin/node || true
-RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
-COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /usr/local/lib/python3.13/site-packages \
                     /usr/local/lib/python3.13/site-packages
+
+RUN ln -s /usr/bin/nodejs /usr/local/bin/node || true
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
 # Non-root user
 RUN useradd -m -u 1001 appuser && mkdir -p /tmp/ayevideo_downloads
