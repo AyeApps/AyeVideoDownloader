@@ -45,7 +45,7 @@ app.post('/api/formats', async (req, res) => {
         return res.json(response.data);
     } catch (error) {
         console.error("Format fetch error:", error.response?.data || error.message);
-        res.status(error.response?.status || 500).json({ error: 'Failed to fetch formats from Railway API' });
+        res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch formats from Railway API' });
     }
 });
 
@@ -64,7 +64,7 @@ app.post('/api/download', async (req, res) => {
         return res.json(response.data);
     } catch (error) {
         console.error("Download error:", error.response?.data || error.message);
-        res.status(error.response?.status || 500).json({ error: 'Download failed via Railway API' });
+        res.status(error.response?.status || 500).json(error.response?.data || { error: 'Download failed via Railway API' });
     }
 });
 
