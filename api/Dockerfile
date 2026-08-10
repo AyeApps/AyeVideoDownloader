@@ -17,9 +17,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM python:3.13-slim AS production
 WORKDIR /app
 
-# ffmpeg + yt-dlp (requires nodejs) en producción
-RUN apt-get update && apt-get install -y ffmpeg nodejs && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/bin /usr/local/bin
+# ffmpeg + nodejs + deno (JS runtimes for yt-dlp) en producción
+RUN apt-get update && apt-get install -y ffmpeg nodejs curl unzip && rm -rf /var/lib/apt/lists/*
+RUN ln -s /usr/bin/nodejs /usr/local/bin/node || true
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
+
+COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 COPY --from=builder /usr/local/lib/python3.13/site-packages \
                     /usr/local/lib/python3.13/site-packages
 

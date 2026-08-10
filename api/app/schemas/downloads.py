@@ -46,6 +46,7 @@ class DownloadJobResponse(BaseModel):
     status: str
     progress: float
     progress_text: str
+    error_message: Optional[str] = None
     title: Optional[str]
     thumbnail_url: Optional[str]
     file_size: Optional[int]

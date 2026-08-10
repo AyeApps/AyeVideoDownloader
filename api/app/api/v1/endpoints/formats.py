@@ -19,7 +19,10 @@ async def fetch_formats(
     try:
         return await FormatService.fetch_formats(str(body.url))
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        msg = str(e)
+        if "429" in msg or "Too Many Requests" in msg:
+            msg = "YouTube ha bloqueado o limitado temporalmente la IP del servidor (HTTP 429). Se ha intentado usar clientes alternativos (iOS/Mobile). Si persiste, configura un archivo de cookies o un proxy."
+        raise HTTPException(status_code=422, detail=msg)
 
 
 @router.get("/build-string", response_model=BuildFormatStringResponse)

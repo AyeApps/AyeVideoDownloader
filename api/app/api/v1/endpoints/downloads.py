@@ -51,6 +51,7 @@ async def create_download(
         status=job.status,
         progress=job.progress,
         progress_text=job.progress_text,
+        error_message=job.error_message,
         title=job.title,
         thumbnail_url=job.thumbnail_url,
         file_size=job.file_size,
@@ -75,6 +76,7 @@ async def list_downloads(
             status=job.status,
             progress=job.progress,
             progress_text=job.progress_text,
+            error_message=job.error_message,
             title=job.title,
             thumbnail_url=job.thumbnail_url,
             file_size=job.file_size,
@@ -97,6 +99,7 @@ async def get_download(job_id: str, current_user: User = Depends(get_current_use
         status=job.status,
         progress=job.progress,
         progress_text=job.progress_text,
+        error_message=job.error_message,
         title=job.title,
         thumbnail_url=job.thumbnail_url,
         file_size=job.file_size,
@@ -123,6 +126,7 @@ async def stream_progress(
                     "status": job.status,
                     "progress": job.progress,
                     "progress_text": job.progress_text,
+                    "error_message": job.error_message,
                     "title": job.title,
                 })
             }

@@ -2,8 +2,10 @@ import asyncio
 import json
 from app.schemas.downloads import AvailableFormatResponse, FetchFormatsResponse
 from app.core.logging import get_logger
+from app.services.ytdlp_utils import get_base_ytdlp_args
 
 logger = get_logger(__name__)
+
 
 def _codec_label(vcodec: str) -> str:
     if vcodec.startswith("avc"): return "H.264"
@@ -33,8 +35,9 @@ class FormatService:
 
     @staticmethod
     async def fetch_formats(url: str) -> FetchFormatsResponse:
+        base_args = get_base_ytdlp_args()
         proc = await asyncio.create_subprocess_exec(
-            "yt-dlp", "--js-runtimes", "node", "-j", "--no-playlist", "--skip-download", url,
+            "yt-dlp", *base_args, "-j", "--no-playlist", "--skip-download", url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

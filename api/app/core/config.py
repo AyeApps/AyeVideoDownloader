@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     rate_limit_login: str = "5/minute"
     rate_limit_downloads: str = "10/minute"
 
+    ytdlp_cookies_path: str = ""
+    ytdlp_proxy: str = ""
+    ytdlp_player_client: str = "ios,mweb,web"
+    ytdlp_js_runtimes: str = "deno,node"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()

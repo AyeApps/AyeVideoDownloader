@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.download_job import DownloadJob, JobStatus
 from app.core.logging import get_logger
 from app.core.config import settings
+from app.services.ytdlp_utils import get_base_ytdlp_args
 
 logger = get_logger(__name__)
 
@@ -25,8 +26,11 @@ class DownloadService:
             stderr=asyncio.subprocess.STDOUT,
         )
         
+        last_error_line = ""
         async for line in process.stdout:
             decoded = line.decode("utf-8", errors="replace").strip()
+            if any(err_kw in decoded for err_kw in ("ERROR:", "WARNING:", "HTTP Error", "HTTPError")):
+                last_error_line = decoded
             await DownloadService._parse_progress(job, decoded)
         
         await process.wait()
@@ -46,18 +50,22 @@ class DownloadService:
                     break
         else:
             job.status = JobStatus.FAILED
-            job.error_message = f"yt-dlp salió con código {process.returncode}"
+            err_msg = last_error_line or f"yt-dlp salió con código {process.returncode}"
+            job.error_message = err_msg
+            job.progress_text = f"Error: {err_msg}"
+            logger.error("Download job %s failed: %s", job.id, err_msg)
         
         await job.save()
 
     @staticmethod
     def _build_args(job: DownloadJob, output_dir: Path) -> list[str]:
         output_template = str(output_dir / "%(title)s.%(ext)s")
+        base_args = get_base_ytdlp_args()
         
         if job.format == "audioMP3":
-            return ["--js-runtimes", "node", "--no-playlist", "-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]
+            return base_args + ["--no-playlist", "-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]
         
-        return ["--js-runtimes", "node", "--no-playlist", "-f", job.format_string, "--merge-output-format", "mp4",
+        return base_args + ["--no-playlist", "-f", job.format_string or "bestvideo+bestaudio/best", "--merge-output-format", "mp4",
                 "--newline", "-o", output_template, job.url]
 
     @staticmethod
