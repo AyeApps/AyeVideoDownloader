@@ -216,7 +216,11 @@ export default function App() {
       if (res.status === 401) { handleLogout(); return; }
       const data = await res.json();
       
-      const formattedOptions = (data.formats || []).map(f => {
+      if (!res.ok || !data.formats || data.formats.length === 0) {
+        throw new Error(data.error || "Failed to detect video");
+      }
+      
+      const formattedOptions = data.formats.map(f => {
         if (f.id === 'audio_only' || f.vcodec === 'none') return { id: f.id, label: 'AUDIO MP3', raw: f };
         
         let codecDesc = '';
@@ -239,11 +243,17 @@ export default function App() {
       const preferred = getPreferredFormat(formattedOptions, globalSettings);
 
       setDownloads(prev => prev.map(d => 
-        d.id === id ? { ...d, name: data.title || d.name, options: formattedOptions, quality: preferred, status: "READY" } : d
+        d.id === id ? { ...d, name: data.title || "Unknown Video", options: formattedOptions, quality: preferred, status: "READY" } : d
       ));
     } catch (err) {
       setDownloads(prev => prev.map(d => 
-        d.id === id ? { ...d, status: "ERROR" } : d
+        d.id === id ? { 
+          ...d, 
+          name: "ERROR DETECTING VIDEO", 
+          status: "ERROR", 
+          quality: "error",
+          options: [{ id: "error", label: "UNAVAILABLE" }]
+        } : d
       ));
     }
   };
@@ -669,19 +679,21 @@ export default function App() {
                       </td>
                       <td data-label="Quality" style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}>
-                          <select className="geometric-select" style={{ padding: '8px', fontSize: '12px', backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }} value={d.type} onChange={(e) => updateType(d.id, e.target.value)}>
+                          <select className="geometric-select" style={{ padding: '8px', fontSize: '12px', backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }} value={d.type} onChange={(e) => updateType(d.id, e.target.value)} disabled={d.status === "ERROR"}>
                             <option value="video">VIDEO</option>
                             <option value="audio">AUDIO</option>
                           </select>
                           
                           {d.type === 'video' ? (
-                            <select className="geometric-select" style={{ padding: '8px', fontSize: '12px' }} value={d.quality} onChange={(e) => updateQuality(d.id, e.target.value)}>
+                            <select className="geometric-select" style={{ padding: '8px', fontSize: '12px' }} value={d.quality} onChange={(e) => updateQuality(d.id, e.target.value)} disabled={d.status === "ERROR"}>
                               {(d.options || []).filter(o => o.id !== 'audio_only').map(opt => (
                                 <option key={opt.id} value={opt.id}>{opt.label}</option>
                               ))}
                             </select>
                           ) : (
-                            <span style={{ fontSize: '12px', fontWeight: 800, marginLeft: '8px' }}>MP3 (MEJOR CALIDAD)</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, marginLeft: '8px', color: d.status === "ERROR" ? 'var(--error-color, red)' : 'inherit' }}>
+                              {d.status === "ERROR" ? 'ERROR' : 'MP3 (MEJOR CALIDAD)'}
+                            </span>
                           )}
                         </div>
                       </td>
@@ -689,7 +701,7 @@ export default function App() {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                           <span className="status-indicator" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {(d.status === "WAITING" || d.status === "DOWNLOADING" || (d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY")) ? <span className="status-dot pulsing"></span> : null}
-                          <span style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }} title={d.status}>
+                          <span style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', color: d.status === 'ERROR' ? 'var(--error-color, red)' : 'inherit' }} title={d.status}>
                             {d.status.startsWith('[DOWNLOAD]') ? `DOWNLOADING ${Math.round((d.progress || 0) * 100)}%` : 
                              (d.status.startsWith('[MERGER]') || d.status.startsWith('[EXTRACTAUDIO]') ? 'PROCESSING / MERGING...' : d.status)}
                           </span>
