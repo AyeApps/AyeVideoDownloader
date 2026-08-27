@@ -38,7 +38,8 @@ app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=settings.allowed_origins if isinstance(settings.allowed_origins, list) else [settings.allowed_origins],
+    allow_origin_regex=r"^https://.*\.ayeapps\.com$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

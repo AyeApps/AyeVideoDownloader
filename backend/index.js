@@ -3,7 +3,12 @@ const cors = require('cors');
 const axios = require('axios');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL || 'https://ayevideodownloader-production.up.railway.app/api/v1';

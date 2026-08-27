@@ -1,5 +1,7 @@
+import json
+from typing import List, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
 
 class Settings(BaseSettings):
     app_env: str = "development"
@@ -13,7 +15,35 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     refresh_token_expire_minutes: int = 10080
     
-    allowed_origins: List[str] = ["http://localhost:3000", "ayevideo://app"]
+    allowed_origins: Union[List[str], str] = [
+        "https://video.ayeapps.com",
+        "https://tasks.ayeapps.com",
+        "https://ayeapps.com",
+        "https://www.ayeapps.com",
+        "https://accounts.ayeapps.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "ayevideo://app"
+    ]
+    
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v):
+        if isinstance(v, str):
+            v_stripped = v.strip()
+            if v_stripped.startswith("[") and v_stripped.endswith("]"):
+                try:
+                    return json.loads(v_stripped)
+                except Exception:
+                    # Fallback for single quotes or malformed JSON
+                    cleaned = v_stripped.strip("[]").replace("'", '"')
+                    try:
+                        return json.loads(f"[{cleaned}]")
+                    except Exception:
+                        return [item.strip().strip("'\"") for item in v_stripped.strip("[]").split(",") if item.strip()]
+            return [item.strip().strip("'\"") for item in v.split(",") if item.strip()]
+        return v
     
     max_concurrent_downloads: int = 3
     download_ttl_minutes: int = 30
@@ -28,6 +58,6 @@ class Settings(BaseSettings):
     ytdlp_player_client: str = "android,tv,web"
     ytdlp_js_runtimes: str = "deno"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()
