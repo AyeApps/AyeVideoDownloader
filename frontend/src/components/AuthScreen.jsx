@@ -184,6 +184,9 @@ export default function AuthScreen({
 
   return (
     <div className={`ayetasks-auth-root ${isDark ? 'dark' : 'light'}`}>
+      {/* Moving Animated Dot Matrix Background */}
+      <div className="ayetasks-dot-grid-animated" />
+
       {/* Top Right Controls (Exact clone of AyeTasks) */}
       <div className="ayetasks-top-controls">
         <button

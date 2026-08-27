@@ -1,4 +1,13 @@
-/* ─── Exact 1-to-1 Match with AyeTasks AuthScreen ─────────────────────── */
+/* ─── Exact 1-to-1 Clone of AyeTasks Neo-Brutalist Cyber Design System ─── */
+
+@keyframes gridMove {
+  0% {
+    background-position: 0px 0px;
+  }
+  100% {
+    background-position: 32px 32px;
+  }
+}
 
 .ayetasks-auth-root {
   min-height: 100vh;
@@ -17,43 +26,46 @@
   background-color: #000000;
   color: #ffffff;
   --bg-base: #000000;
-  --bg-surface: #121212;
+  --bg-surface: #101010;
   --border-color: #ffffff;
   --text-primary: #ffffff;
   --text-invert: #000000;
-  --text-muted: #888888;
+  --text-muted: #666666;
   --accent-color: #FE9D01;
-  --shadow-color: rgba(255, 255, 255, 0.08);
-  --dot-color: rgba(255, 255, 255, 0.12);
+  --accent-success: #00e676;
+  --shadow-color: #ffffff;
+  --grid-dot-color: rgba(255, 255, 255, 0.18);
   --apple-btn-bg: #FFFFFF;
   --apple-btn-text: #000000;
   --apple-btn-border: #FFFFFF;
 }
 
 .ayetasks-auth-root.light {
-  background-color: #F8F9FA;
+  background-color: #ffffff;
   color: #000000;
-  --bg-base: #FFFFFF;
-  --bg-surface: #F0F2F5;
+  --bg-base: #ffffff;
+  --bg-surface: #eeeeee;
   --border-color: #000000;
   --text-primary: #000000;
-  --text-invert: #FFFFFF;
-  --text-muted: #666666;
-  --accent-color: #FE9D01;
-  --shadow-color: rgba(0, 0, 0, 0.12);
-  --dot-color: rgba(0, 0, 0, 0.12);
+  --text-invert: #ffffff;
+  --text-muted: #888888;
+  --accent-color: #E68A00;
+  --accent-success: #00c853;
+  --shadow-color: #000000;
+  --grid-dot-color: rgba(0, 0, 0, 0.14);
   --apple-btn-bg: #000000;
-  --apple-btn-text: #FFFFFF;
+  --apple-btn-text: #ffffff;
   --apple-btn-border: #000000;
 }
 
-/* Background Dotted Matrix (Exact grid match) */
-.ayetasks-auth-root::before {
-  content: '';
+/* Moving Animated Dot Grid (Exact replica of AyeTasks AnimatedDotBackground) */
+.ayetasks-dot-grid-animated {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(var(--dot-color) 1.2px, transparent 1.2px);
+  background-image: radial-gradient(var(--grid-dot-color) 1.5px, transparent 1.5px);
   background-size: 32px 32px;
+  background-position: center;
+  animation: gridMove 5s linear infinite;
   pointer-events: none;
   z-index: 0;
 }
@@ -72,19 +84,20 @@
 .ayetasks-control-btn {
   height: 44px;
   border: 2px solid var(--border-color);
-  background-color: var(--bg-base);
+  background-color: var(--bg-surface);
   color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 3px 3px 0px 0px var(--border-color);
+  box-shadow: 3px 3px 0px 0px var(--shadow-color);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
+  border-radius: 0;
 }
 
 .ayetasks-control-btn:active {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px 0px var(--border-color);
+  box-shadow: 1px 1px 0px 0px var(--shadow-color);
 }
 
 .ayetasks-theme-btn {
@@ -99,6 +112,7 @@
 .ayetasks-lang-text {
   font-size: 12px;
   font-weight: 900;
+  font-family: Courier, monospace;
   letter-spacing: 0.8px;
 }
 
@@ -124,6 +138,7 @@
   position: relative;
   padding-top: 52px;
   box-shadow: 12px 12px 0px 0px var(--shadow-color);
+  border-radius: 0;
 }
 
 @media (max-width: 600px) {
@@ -133,7 +148,7 @@
   }
 }
 
-/* Pinned Tech Badge (Top Left of Card) */
+/* Pinned Tech Badge (Top Left of Card overlapping border) */
 .ayetasks-tech-badge {
   position: absolute;
   top: -14px;
@@ -143,22 +158,23 @@
   gap: 7px;
   padding: 4px 12px;
   background-color: var(--bg-base);
-  border: 2px solid #10b981;
+  border: 2px solid var(--accent-success);
+  border-radius: 0;
 }
 
 .ayetasks-status-dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background-color: #10b981;
+  border-radius: 3.5px;
+  background-color: var(--accent-success);
 }
 
 .ayetasks-status-dot.offline {
-  background-color: #ef4444;
+  background-color: #ff1744;
 }
 
 .ayetasks-status-dot.checking {
-  background-color: #f59e0b;
+  background-color: #FFD600;
 }
 
 .ayetasks-tech-badge-text {
@@ -166,7 +182,8 @@
   font-weight: 900;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: #10b981;
+  color: var(--accent-success);
+  font-family: Courier, monospace;
 }
 
 /* Frame Content */
@@ -200,6 +217,7 @@
   margin: 0;
   color: var(--text-primary);
   line-height: 1.1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* Segmented Selector Tabs */
@@ -208,6 +226,7 @@
   border: 2px solid var(--border-color);
   background-color: var(--bg-surface);
   margin-bottom: 24px;
+  border-radius: 0;
 }
 
 .ayetasks-tab-button {
@@ -221,6 +240,7 @@
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
+  border-radius: 0;
 }
 
 .ayetasks-tab-button.active {
@@ -232,6 +252,7 @@
   font-weight: 900;
   letter-spacing: 1.2px;
   color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .ayetasks-tab-button.active .ayetasks-tab-button-text {
@@ -245,19 +266,20 @@
   gap: 16px;
 }
 
-/* Inputs */
+/* Inputs with Courier font */
 .ayetasks-geometric-input {
   width: 100%;
   border: 2px solid var(--border-color);
   background-color: var(--bg-base);
   color: var(--text-primary);
   padding: 16px 18px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.8px;
+  font-family: Courier, monospace;
   outline: none;
   min-height: 52px;
   border-radius: 0;
+  box-sizing: border-box;
 }
 
 .ayetasks-geometric-input::placeholder {
@@ -284,13 +306,15 @@
   align-items: center;
   justify-content: center;
   min-height: 52px;
-  box-shadow: 4px 4px 0px 0px var(--border-color);
+  box-shadow: 4px 4px 0px 0px var(--shadow-color);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
+  border-radius: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .ayetasks-hero-btn:active {
   transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px 0px var(--border-color);
+  box-shadow: 2px 2px 0px 0px var(--shadow-color);
 }
 
 .ayetasks-hero-btn:disabled {
@@ -318,6 +342,7 @@
   font-weight: 700;
   letter-spacing: 1.2px;
   color: var(--text-muted);
+  font-family: Courier, monospace;
 }
 
 /* Social Login Buttons */
@@ -339,13 +364,15 @@
   font-weight: 900;
   letter-spacing: 1.2px;
   cursor: pointer;
-  box-shadow: 3px 3px 0px 0px var(--border-color);
+  box-shadow: 3px 3px 0px 0px var(--shadow-color);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
+  border-radius: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .ayetasks-social-btn:active {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px 0px var(--border-color);
+  box-shadow: 1px 1px 0px 0px var(--shadow-color);
 }
 
 .ayetasks-social-btn.google-btn {
@@ -363,14 +390,15 @@
 .ayetasks-error-alert-box {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background-color: rgba(239, 68, 68, 0.12);
-  border: 1.5px solid #ef4444;
-  color: #ef4444;
+  gap: 10px;
+  border: 1.5px solid #ff1744;
+  background-color: rgba(255, 23, 68, 0.12);
+  color: #ff1744;
+  padding: 12px 14px;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.8px;
+  font-family: Courier, monospace;
 }
 
 .ayetasks-suggest-register-box {
@@ -388,12 +416,14 @@
   font-weight: 900;
   letter-spacing: 0.8px;
   color: var(--accent-color);
+  font-family: Courier, monospace;
 }
 
 .ayetasks-suggest-desc {
   font-size: 11px;
   line-height: 16px;
   color: var(--text-primary);
+  font-family: Courier, monospace;
 }
 
 .ayetasks-suggest-btn {
@@ -406,8 +436,9 @@
   letter-spacing: 0.8px;
   cursor: pointer;
   box-shadow: 2px 2px 0px 0px var(--accent-color);
+  font-family: Courier, monospace;
 }
 
 .font-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: Courier, monospace !important;
 }
