@@ -53,6 +53,9 @@ async def create_download(
     return DownloadJobResponse(
         job_id=str(job.id),
         status=job.status,
+        stage=job.stage,
+        video_progress=job.video_progress,
+        audio_progress=job.audio_progress,
         progress=job.progress,
         progress_text=job.progress_text,
         error_message=job.error_message,
@@ -79,6 +82,9 @@ async def list_downloads(
         DownloadJobResponse(
             job_id=str(job.id),
             status=job.status,
+            stage=job.stage,
+            video_progress=job.video_progress,
+            audio_progress=job.audio_progress,
             progress=job.progress,
             progress_text=job.progress_text,
             error_message=job.error_message,
@@ -102,6 +108,9 @@ async def get_download(job_id: str, current_user: User = Depends(get_current_use
     return DownloadJobResponse(
         job_id=str(job.id),
         status=job.status,
+        stage=job.stage,
+        video_progress=job.video_progress,
+        audio_progress=job.audio_progress,
         progress=job.progress,
         progress_text=job.progress_text,
         error_message=job.error_message,
@@ -129,6 +138,9 @@ async def stream_progress(
                 "event": "progress",
                 "data": json.dumps({
                     "status": job.status,
+                    "stage": job.stage,
+                    "video_progress": job.video_progress,
+                    "audio_progress": job.audio_progress,
                     "progress": job.progress,
                     "progress_text": job.progress_text,
                     "error_message": job.error_message,

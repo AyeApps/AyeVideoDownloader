@@ -37,6 +37,9 @@ class DownloadService:
         
         if process.returncode == 0:
             job.status = JobStatus.DONE
+            job.stage = "done"
+            job.video_progress = 1.0
+            job.audio_progress = 1.0
             job.progress = 1.0
             job.progress_text = "Completado"
             job.expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.download_ttl_minutes)
@@ -70,12 +73,40 @@ class DownloadService:
 
     @staticmethod
     async def _parse_progress(job: DownloadJob, line: str):
+        if "Destination:" in line:
+            if any(ext in line.lower() for ext in (".m4a", ".webm", ".opus", ".mp3", ".aac", ".f140", ".f251")):
+                job.stage = "audio"
+            elif any(ext in line.lower() for ext in (".mp4", ".f137", ".f248", ".f313", ".f271", ".f136")):
+                job.stage = "video"
+        elif "[Merger]" in line or "[ffmpeg]" in line or "Merging formats" in line:
+            job.stage = "merging"
+            job.video_progress = 1.0
+            job.audio_progress = 1.0
+            job.progress = 1.0
+            job.progress_text = "Combinando audio y video..."
+            await job.save()
+            return
+
         # "[download]  12.3% of ~1.23GiB at  5.00MiB/s ETA 00:42"
         match = re.search(r'\[download\]\s+(\d+\.\d+)%', line)
         if match:
-            progress = float(match.group(1)) / 100.0
-            job.progress = progress
+            pct = float(match.group(1)) / 100.0
+            if job.format in ("audioMP3", "audio"):
+                job.stage = "audio"
+                job.audio_progress = pct
+                job.progress = pct
+            else:
+                if job.stage == "video" and job.video_progress > 0.8 and pct < 0.3:
+                    job.stage = "audio"
+                    job.video_progress = 1.0
+
+                if job.stage == "audio":
+                    job.audio_progress = pct
+                    job.video_progress = 1.0
+                    job.progress = 0.5 + (pct * 0.5)
+                else:
+                    job.video_progress = pct
+                    job.progress = pct * 0.5
+
             job.progress_text = line
-            # Save progress periodically (we might not want to save on EVERY line to avoid DB overload,
-            # but for this implementation we will save to maintain accuracy)
             await job.save()

@@ -86,6 +86,30 @@ app.get('/api/download/:jobId', async (req, res) => {
     }
 });
 
+app.get('/api/download/:jobId/stream', async (req, res) => {
+    try {
+        const token = req.query.token || (req.headers.authorization ? req.headers.authorization.replace('Bearer ', '') : '');
+        const { jobId } = req.params;
+
+        const response = await axios({
+            method: 'get',
+            url: `${PYTHON_API_URL}/downloads/${jobId}/stream`,
+            responseType: 'stream',
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        response.data.pipe(res);
+    } catch (error) {
+        console.error("Stream proxy error:", error.message);
+        res.status(error.response?.status || 500).json({ error: 'Failed to stream progress' });
+    }
+});
+
 app.get('/api/download/:jobId/file', async (req, res) => {
     try {
         const token = req.query.token;

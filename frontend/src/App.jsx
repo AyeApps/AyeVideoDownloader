@@ -157,17 +157,22 @@ export default function App() {
       return l === 'es' ? "TRANSFIRIENDO AL NAVEGADOR..." : "TRANSFERRING TO BROWSER...";
     }
 
-    if (d.status === "COMPLETED") return l === 'es' ? "COMPLETADO" : "COMPLETED";
+    if (d.status === "COMPLETED" || d.status === "DONE" || d.status === "done") return l === 'es' ? "COMPLETADO" : "COMPLETED";
     
-    const statusLower = (d.status || '').toLowerCase();
-    if (statusLower.includes('download') || d.status === 'DOWNLOADING') {
-      const pct = Math.round((d.progress || 0) * 100);
-      return `${l === 'es' ? 'DESCARGANDO' : 'DOWNLOADING'} ${pct}%`;
+    const stage = d.stage || 'video';
+    const textLower = (d.progress_text || d.status || '').toLowerCase();
+    
+    if (stage === 'merging' || textLower.includes('merg') || textLower.includes('ffmpeg')) {
+      return l === 'es' ? "COMBINANDO AUDIO Y VIDEO (FFMPEG)..." : "MERGING AUDIO & VIDEO (FFMPEG)...";
     }
-    if (statusLower.includes('merg') || statusLower.includes('extract') || statusLower.includes('ffmpeg')) {
-      return l === 'es' ? "PROCESANDO FFMPEG..." : "PROCESSING FFMPEG...";
+    
+    if (stage === 'audio' || textLower.includes('audio') || d.type === 'audio') {
+      const aPct = Math.round((d.audio_progress !== undefined && d.audio_progress > 0 ? d.audio_progress : (d.progress || 0)) * 100);
+      return `${l === 'es' ? 'DESCARGANDO AUDIO' : 'DOWNLOADING AUDIO'} ${aPct}%`;
     }
-    return d.status;
+    
+    const vPct = Math.round((d.video_progress !== undefined && d.video_progress > 0 ? d.video_progress : (d.progress || 0)) * 100);
+    return `${l === 'es' ? 'DESCARGANDO VIDEO' : 'DOWNLOADING VIDEO'} ${vPct}%`;
   };
 
   const getOptionLabel = (opt, l) => {
@@ -450,36 +455,56 @@ export default function App() {
       const data = await res.json();
       
       if (data.status === 'done' || data.status === 'DONE') {
+        const currentItem = downloads.find(d => d.id === id);
+        const builtName = buildFileName(currentItem || { name: data.title, type: 'video' });
+        
         setDownloads(prev => prev.map(d => {
           if (d.id === id) {
-            const updated = { ...d, status: "COMPLETED", progress: 100 };
-            // Add to history
-            setHistory(h => [
-              {
-                id: Date.now(),
-                title: d.name,
-                url: d.url,
-                type: d.type,
-                quality: d.quality,
-                jobId: d.jobId,
-                date: new Date().toLocaleString(),
-                fileName: buildFileName(d)
-              },
-              ...h.filter(item => item.url !== d.url)
-            ]);
-            return updated;
+            return { 
+              ...d, 
+              status: "COMPLETED", 
+              stage: "done",
+              video_progress: 1.0,
+              audio_progress: 1.0,
+              progress: 1.0,
+              name: (d.name && d.name.startsWith("DETECT")) ? (data.title || d.name) : d.name 
+            };
           }
           return d;
         }));
-        
-        const currentItem = downloads.find(d => d.id === id);
-        if (currentItem) {
-          triggerFileDownload(jobId, buildFileName(currentItem), currentItem.type);
-        }
+
+        // Add to history
+        setHistory(h => [
+          {
+            id: Date.now(),
+            title: data.title || (currentItem?.name || "Video"),
+            url: currentItem?.url || "",
+            type: currentItem?.type || "video",
+            quality: currentItem?.quality || "best",
+            jobId: jobId,
+            date: new Date().toLocaleString(),
+            fileName: builtName
+          },
+          ...h.filter(item => item.jobId !== jobId)
+        ]);
+
+        triggerFileDownload(jobId, builtName, currentItem?.type || 'video');
       } else if (data.status === 'error' || data.status === 'FAILED') {
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
       } else {
-        setTimeout(() => pollDownloadStatus(id, jobId), 2000);
+        setDownloads(prev => prev.map(d => {
+          if (d.id !== id) return d;
+          return {
+            ...d,
+            status: data.status || d.status || "DOWNLOADING",
+            stage: data.stage || d.stage || (data.progress_text?.includes('audio') ? 'audio' : 'video'),
+            progress: data.progress !== undefined ? data.progress : d.progress,
+            video_progress: data.video_progress !== undefined ? data.video_progress : (d.video_progress || 0),
+            audio_progress: data.audio_progress !== undefined ? data.audio_progress : (d.audio_progress || 0),
+            progress_text: data.progress_text || d.progress_text
+          };
+        }));
+        setTimeout(() => pollDownloadStatus(id, jobId), 1500);
       }
     } catch {
       setTimeout(() => pollDownloadStatus(id, jobId), 3000);
@@ -489,7 +514,7 @@ export default function App() {
   const handleDownloadAll = () => {
     downloads.forEach(d => {
       if (d.status === "READY") {
-        setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, status: "STARTING..." } : item));
+        setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, status: "STARTING...", stage: "video", video_progress: 0, audio_progress: 0 } : item));
         
         fetch(`${API_BASE_URL}/api/download`, {
           method: 'POST',
@@ -510,11 +535,12 @@ export default function App() {
         })
         .then(data => {
           if (data && data.job_id) {
-            setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, jobId: data.job_id, status: "DOWNLOADING" } : item));
+            setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, jobId: data.job_id, status: "DOWNLOADING", stage: "video", video_progress: 0.05 } : item));
             
-            // Connect to progress Stream
+            // Connect to progress Stream with token query
             try {
-              const eventSource = new EventSource(`${API_BASE_URL}/api/download/${data.job_id}/stream`);
+              const streamUrl = `${API_BASE_URL}/api/download/${data.job_id}/stream?token=${encodeURIComponent(token)}`;
+              const eventSource = new EventSource(streamUrl);
               eventSource.addEventListener('progress', (e) => {
                 try {
                   const pData = JSON.parse(e.data);
@@ -522,8 +548,12 @@ export default function App() {
                     if (item.id !== d.id) return item;
                     return {
                       ...item,
-                      status: pData.progress_text || pData.status || "DOWNLOADING",
-                      progress: pData.progress || 0
+                      status: pData.status || "DOWNLOADING",
+                      stage: pData.stage || item.stage || (pData.progress_text?.includes('audio') ? 'audio' : 'video'),
+                      progress: pData.progress !== undefined ? pData.progress : item.progress,
+                      video_progress: pData.video_progress !== undefined ? pData.video_progress : (item.video_progress || 0),
+                      audio_progress: pData.audio_progress !== undefined ? pData.audio_progress : (item.audio_progress || 0),
+                      progress_text: pData.progress_text || item.progress_text
                     };
                   }));
                 } catch {
@@ -990,10 +1020,10 @@ export default function App() {
                       </td>
                       
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', minWidth: '130px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', minWidth: '160px' }}>
                           <span style={{ 
                             fontFamily: 'var(--font-mono)', 
-                            fontSize: '12px', 
+                            fontSize: '11px', 
                             fontWeight: 800, 
                             textTransform: 'uppercase', 
                             color: (d.status === 'ERROR' || d.status === 'FAILED') ? 'var(--accent-error)' : (d.status === 'COMPLETED' ? 'var(--accent-success)' : 'inherit'),
@@ -1003,21 +1033,65 @@ export default function App() {
                           </span>
                           
                           {(d.status === "WAITING" || d.status === "STARTING...") && (
-                            <div className="progress-bar-track">
+                            <div className="progress-bar-track" style={{ width: '100%' }}>
                               <div className="progress-bar-fill indeterminate" />
                             </div>
                           )}
 
                           {(d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "FAILED" && d.status !== "READY" && d.status !== "WAITING" && d.status !== "STARTING...") && (
-                            <div className="progress-bar-track">
-                              <div className="progress-bar-fill" style={{ transform: `scaleX(${Math.max(0.08, Math.min(1, d.progress || 0))})` }} />
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {d.type === 'video' ? (
+                                <>
+                                  {/* Track 1: Video stream */}
+                                  <div style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                                      <span>VIDEO (MP4)</span>
+                                      <span>{Math.round((d.video_progress !== undefined && d.video_progress > 0 ? d.video_progress : (d.stage === 'audio' || d.stage === 'merging' ? 1 : d.progress || 0)) * 100)}%</span>
+                                    </div>
+                                    <div className="progress-bar-track">
+                                      <div 
+                                        className={`progress-bar-fill ${d.stage === 'audio' || d.stage === 'merging' || (d.video_progress || 0) >= 0.99 ? 'success' : ''}`} 
+                                        style={{ width: `${Math.max(6, Math.min(100, Math.round((d.video_progress !== undefined && d.video_progress > 0 ? d.video_progress : (d.stage === 'audio' || d.stage === 'merging' ? 1 : d.progress || 0)) * 100)))}%` }} 
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Track 2: Audio stream */}
+                                  <div style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                                      <span>AUDIO (AAC)</span>
+                                      <span>{Math.round((d.audio_progress !== undefined && d.audio_progress > 0 ? d.audio_progress : (d.stage === 'merging' ? 1 : 0)) * 100)}%</span>
+                                    </div>
+                                    <div className="progress-bar-track">
+                                      <div 
+                                        className={`progress-bar-fill ${d.stage === 'merging' || (d.audio_progress || 0) >= 0.99 ? 'success' : ''}`} 
+                                        style={{ width: `${Math.max(6, Math.min(100, Math.round((d.audio_progress !== undefined && d.audio_progress > 0 ? d.audio_progress : (d.stage === 'merging' ? 1 : 0)) * 100)))}%` }} 
+                                      />
+                                    </div>
+                                  </div>
+                                </>
+                              ) : (
+                                /* Audio only format */
+                                <div style={{ width: '100%' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                                    <span>AUDIO (MP3)</span>
+                                    <span>{Math.round((d.progress || 0) * 100)}%</span>
+                                  </div>
+                                  <div className="progress-bar-track">
+                                    <div 
+                                      className="progress-bar-fill" 
+                                      style={{ width: `${Math.max(6, Math.min(100, Math.round((d.progress || 0) * 100)))}%` }} 
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
 
                           {d.status === "COMPLETED" && (
                             <>
-                              <div className="progress-bar-track" style={{ marginBottom: '8px' }}>
-                                <div className="progress-bar-fill success" style={{ transform: 'scaleX(1)' }} />
+                              <div className="progress-bar-track" style={{ width: '100%', marginBottom: '8px' }}>
+                                <div className="progress-bar-fill success" style={{ width: '100%' }} />
                               </div>
                               <button 
                                 className="geometric-btn primary"

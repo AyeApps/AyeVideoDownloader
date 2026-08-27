@@ -28,6 +28,9 @@ class DownloadJob(Document):
     format_string: Optional[str] = None
 
     status: JobStatus = JobStatus.PENDING
+    stage: str = "video"
+    video_progress: float = 0.0
+    audio_progress: float = 0.0
     progress: float = 0.0
     progress_text: str = ""
     title: Optional[str] = None

@@ -44,6 +44,9 @@ class CreateDownloadRequest(BaseModel):
 class DownloadJobResponse(BaseModel):
     job_id: str
     status: str
+    stage: Optional[str] = "video"
+    video_progress: Optional[float] = 0.0
+    audio_progress: Optional[float] = 0.0
     progress: float
     progress_text: str
     error_message: Optional[str] = None
