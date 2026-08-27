@@ -15,8 +15,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
-router = APIRouter(prefix="/downloads", tags=["downloads"])
+router = APIRouter(tags=["downloads"])
 
+@router.post("", status_code=202, response_model=DownloadJobResponse)
 @router.post("/", status_code=202, response_model=DownloadJobResponse)
 @limiter.limit("10/minute")
 async def create_download(
@@ -60,6 +61,7 @@ async def create_download(
         expires_at=job.expires_at,
     )
 
+@router.get("", response_model=PaginatedResponse[DownloadJobResponse])
 @router.get("/", response_model=PaginatedResponse[DownloadJobResponse])
 async def list_downloads(
     page: int = 1,

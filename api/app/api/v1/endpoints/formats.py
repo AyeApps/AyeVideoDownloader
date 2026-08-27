@@ -9,6 +9,7 @@ from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/formats", tags=["formats"])
 
+@router.post("", response_model=FetchFormatsResponse)
 @router.post("/fetch", response_model=FetchFormatsResponse)
 @limiter.limit("20/minute")
 async def fetch_formats(
