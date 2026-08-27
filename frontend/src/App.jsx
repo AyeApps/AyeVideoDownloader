@@ -141,6 +141,59 @@ export default function App() {
     setIsProfileOpen(false);
   };
 
+  const getStatusLabel = (d, l) => {
+    if (d.status === "WAITING") return l === 'es' ? "EN ESPERA" : "WAITING";
+    if (d.status === "STARTING...") return l === 'es' ? "INICIANDO..." : "STARTING...";
+    if (d.status === "READY") return l === 'es' ? "LISTO" : "READY";
+    if (d.status === "COMPLETED") return l === 'es' ? "COMPLETADO" : "COMPLETED";
+    if (d.status === "ERROR" || d.status === "FAILED") return l === 'es' ? "ERROR" : "ERROR";
+    
+    const statusLower = (d.status || '').toLowerCase();
+    if (statusLower.includes('download') || d.status === 'DOWNLOADING') {
+      const pct = Math.round((d.progress || 0) * 100);
+      return `${l === 'es' ? 'DESCARGANDO' : 'DOWNLOADING'} ${pct}%`;
+    }
+    if (statusLower.includes('merg') || statusLower.includes('extract') || statusLower.includes('ffmpeg')) {
+      return l === 'es' ? "PROCESANDO FFMPEG..." : "PROCESSING FFMPEG...";
+    }
+    return d.status;
+  };
+
+  const getOptionLabel = (opt, l) => {
+    if (!opt) return '';
+    if (opt.id === 'fallback') return l === 'es' ? 'DETECTANDO...' : 'DETECTING...';
+    if (opt.id === 'error') return l === 'es' ? 'NO DISPONIBLE' : 'UNAVAILABLE';
+    if (opt.id === 'audio_only' || opt.raw?.vcodec === 'none') return 'AUDIO MP3';
+    
+    const f = opt.raw;
+    if (!f) return opt.label || opt.id;
+    
+    let codecDesc = '';
+    const vc = (f.vcodec || '').toLowerCase();
+    if (vc.startsWith('avc') || vc === 'h264') codecDesc = l === 'es' ? 'H.264 - NATIVO' : 'H.264 - NATIVE';
+    else if (vc.startsWith('hev') || vc.startsWith('hvc') || vc === 'h265') codecDesc = 'H.265';
+    else if (vc.startsWith('vp9') || vc.startsWith('vp09') || vc === 'vp9') codecDesc = 'VP9';
+    else if (vc.startsWith('av01') || vc === 'av1') codecDesc = 'AV1';
+    else codecDesc = (f.vcodec || '').toUpperCase();
+
+    const isHDR = f.dynamic_range && f.dynamic_range.toUpperCase() !== 'SDR';
+    const hdrDesc = isHDR ? ' · HDR' : '';
+    const mb = f.filesize ? Math.round(f.filesize / 1024 / 1024) + 'MB' : '';
+    const mbText = mb ? ` · ${mb}` : '';
+
+    return `${f.height}P${f.fps > 30 ? f.fps : ''} · ${codecDesc}${hdrDesc}${mbText}`;
+  };
+
+  const getMediaTitle = (d, l) => {
+    if (!d.name || d.name === "DETECTANDO INFORMACIÓN..." || d.name === "DETECTING VIDEO...") {
+      return l === 'es' ? "DETECTANDO INFORMACIÓN..." : "DETECTING VIDEO...";
+    }
+    if (d.name === "ERROR AL DETECTAR VIDEO" || d.name === "ERROR DETECTING VIDEO") {
+      return l === 'es' ? "ERROR AL DETECTAR VIDEO" : "ERROR DETECTING VIDEO";
+    }
+    return d.name;
+  };
+
   // Helper para selección inteligente de calidad
   const getPreferredFormat = (options, settings) => {
     if (!options || options.length === 0) return 'fallback';
@@ -513,6 +566,8 @@ export default function App() {
       <AuthScreen
         apiBaseUrl={API_BASE_URL}
         appName="AYE VIDEO DOWNLOADER"
+        currentLang={lang}
+        onLangChange={setLang}
         onLoginSuccess={(data, emailUsed) => {
           setToken(data.access_token);
           setUserEmail(emailUsed);
@@ -639,7 +694,7 @@ export default function App() {
 
             <div className="panel-card">
               <div className="panel-card-title">
-                ⚙️ {lang === 'es' ? 'PREAJUSTES GLOBALES' : 'GLOBAL PRESETS'}
+                {lang === 'es' ? 'PREAJUSTES GLOBALES' : 'GLOBAL PRESETS'}
               </div>
               
               <div className="settings-grid">
@@ -650,15 +705,15 @@ export default function App() {
                     value={globalSettings.format}
                     onChange={e => setGlobalSettings({ ...globalSettings, format: e.target.value })}
                   >
-                    <option value="video">VIDEO (MP4)</option>
-                    <option value="audio">SOLO AUDIO (MP3)</option>
+                    <option value="video">{lang === 'es' ? 'VIDEO (MP4)' : 'VIDEO (MP4)'}</option>
+                    <option value="audio">{lang === 'es' ? 'SOLO AUDIO (MP3)' : 'AUDIO ONLY (MP3)'}</option>
                   </select>
                 </div>
 
                 <div className="settings-item">
                   <label>{lang === 'es' ? 'CALIDAD PREDETERMINADA' : 'DEFAULT QUALITY'}</label>
                   <select 
-                    className="geometric-select"
+                    className="geometric-select" 
                     value={globalSettings.quality}
                     onChange={e => setGlobalSettings({ ...globalSettings, quality: e.target.value })}
                   >
@@ -672,28 +727,28 @@ export default function App() {
                 <div className="settings-item">
                   <label>{lang === 'es' ? 'CÓDEC PREFERIDO' : 'PREFERRED CODEC'}</label>
                   <select 
-                    className="geometric-select"
+                    className="geometric-select" 
                     value={globalSettings.codec}
                     onChange={e => setGlobalSettings({ ...globalSettings, codec: e.target.value })}
                   >
                     <option value="any">{lang === 'es' ? 'CUALQUIER CÓDEC' : 'ANY CODEC'}</option>
-                    <option value="h264">H.264 (NATIVO - MÁXIMA COMPATIBILIDAD)</option>
-                    <option value="h265">H.265 (POCO PESO)</option>
-                    <option value="vp9">VP9 (YOUTUBE OPTIMIZADO)</option>
-                    <option value="av1">AV1 (MÁXIMA CALIDAD VISUAL)</option>
+                    <option value="h264">{lang === 'es' ? 'H.264 (NATIVO - MÁXIMA COMPATIBILIDAD)' : 'H.264 (NATIVE - MAX COMPATIBILITY)'}</option>
+                    <option value="h265">{lang === 'es' ? 'H.265 (ALTA EFICIENCIA)' : 'H.265 (HIGH EFFICIENCY)'}</option>
+                    <option value="vp9">{lang === 'es' ? 'VP9 (YOUTUBE OPTIMIZADO)' : 'VP9 (YOUTUBE OPTIMIZED)'}</option>
+                    <option value="av1">{lang === 'es' ? 'AV1 (MÁXIMA CALIDAD VISUAL)' : 'AV1 (MAX VISUAL QUALITY)'}</option>
                   </select>
                 </div>
 
                 <div className="settings-item">
                   <label>{lang === 'es' ? 'CALIDAD DE AUDIO MP3' : 'MP3 AUDIO BITRATE'}</label>
                   <select 
-                    className="geometric-select"
+                    className="geometric-select" 
                     value={globalSettings.audioBitrate}
                     onChange={e => setGlobalSettings({ ...globalSettings, audioBitrate: e.target.value })}
                   >
-                    <option value="320">320 KBPS (MÁXIMA FIDELIDAD)</option>
-                    <option value="256">256 KBPS (ALTA CALIDAD)</option>
-                    <option value="192">192 KBPS (ESTÁNDAR)</option>
+                    <option value="320">{lang === 'es' ? '320 KBPS (MÁXIMA FIDELIDAD)' : '320 KBPS (MAX FIDELITY)'}</option>
+                    <option value="256">{lang === 'es' ? '256 KBPS (ALTA CALIDAD)' : '256 KBPS (HIGH QUALITY)'}</option>
+                    <option value="192">{lang === 'es' ? '192 KBPS (ESTÁNDAR)' : '192 KBPS (STANDARD)'}</option>
                   </select>
                 </div>
               </div>
@@ -701,13 +756,13 @@ export default function App() {
 
             <div className="panel-card">
               <div className="panel-card-title">
-                🛡️ {lang === 'es' ? 'ESTADO DEL SISTEMA // AYEAPPS' : 'SYSTEM STATUS // AYEAPPS'}
+                {lang === 'es' ? 'ESTADO DEL SISTEMA // AYEAPPS' : 'SYSTEM STATUS // AYEAPPS'}
               </div>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>• BFF SERVICE: <span style={{ color: 'var(--accent-success)' }}>ONLINE [api-ayvddw.ayeapps.com]</span></div>
-                <div>• CORE ENGINE: <span style={{ color: 'var(--accent-amber)' }}>AYE-YT-DLP 2026.8</span></div>
-                <div>• DATABASE: <span style={{ color: 'var(--accent-success)' }}>MONGODB ACTIVE</span></div>
-                <div>• USER SESSION: <span>{userEmail}</span></div>
+                <div>• {lang === 'es' ? 'SERVICIO BFF:' : 'BFF SERVICE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'EN LÍNEA' : 'ONLINE'} [api-ayvddw.ayeapps.com]</span></div>
+                <div>• {lang === 'es' ? 'MOTOR PRINCIPAL:' : 'CORE ENGINE:'} <span style={{ color: 'var(--accent-amber)' }}>AYE-YT-DLP 2026.8</span></div>
+                <div>• {lang === 'es' ? 'BASE DE DATOS:' : 'DATABASE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'MONGODB ACTIVO' : 'MONGODB ACTIVE'}</span></div>
+                <div>• {lang === 'es' ? 'SESIÓN DE USUARIO:' : 'USER SESSION:'} <span>{userEmail}</span></div>
               </div>
             </div>
           </div>
@@ -882,7 +937,7 @@ export default function App() {
                           </div>
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div className="media-title-text">
-                              <MarqueeTitle text={d.name} />
+                              <MarqueeTitle text={getMediaTitle(d, lang)} />
                             </div>
                             <div className="media-url-subtext">{d.url}</div>
                           </div>
@@ -896,7 +951,7 @@ export default function App() {
                             style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }} 
                             value={d.type} 
                             onChange={(e) => updateType(d.id, e.target.value)} 
-                            disabled={d.status === "ERROR"}
+                            disabled={d.status === "ERROR" || d.status === "FAILED"}
                           >
                             <option value="video">VIDEO</option>
                             <option value="audio">MP3</option>
@@ -908,10 +963,10 @@ export default function App() {
                               style={{ maxWidth: '180px' }} 
                               value={d.quality} 
                               onChange={(e) => updateQuality(d.id, e.target.value)} 
-                              disabled={d.status === "ERROR"}
+                              disabled={d.status === "ERROR" || d.status === "FAILED"}
                             >
                               {(d.options || []).filter(o => o.id !== 'audio_only').map(opt => (
-                                <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                <option key={opt.id} value={opt.id}>{getOptionLabel(opt, lang)}</option>
                               ))}
                             </select>
                           ) : (
@@ -923,10 +978,16 @@ export default function App() {
                       </td>
                       
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: d.status === 'ERROR' ? 'var(--accent-error)' : (d.status === 'COMPLETED' ? 'var(--accent-success)' : 'inherit') }}>
-                            {d.status.startsWith('[DOWNLOAD]') ? `DOWNLOADING ${Math.round((d.progress || 0) * 100)}%` : 
-                             (d.status.startsWith('[MERGER]') || d.status.startsWith('[EXTRACTAUDIO]') ? 'MERGING FFMPEG...' : d.status)}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', minWidth: '130px' }}>
+                          <span style={{ 
+                            fontFamily: 'var(--font-mono)', 
+                            fontSize: '12px', 
+                            fontWeight: 800, 
+                            textTransform: 'uppercase', 
+                            color: (d.status === 'ERROR' || d.status === 'FAILED') ? 'var(--accent-error)' : (d.status === 'COMPLETED' ? 'var(--accent-success)' : 'inherit'),
+                            marginBottom: (d.status !== 'READY' && d.status !== 'ERROR' && d.status !== 'FAILED') ? '6px' : '0'
+                          }}>
+                            {getStatusLabel(d, lang)}
                           </span>
                           
                           {(d.status === "WAITING" || d.status === "STARTING...") && (
@@ -935,22 +996,27 @@ export default function App() {
                             </div>
                           )}
 
-                          {(d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY" && d.status !== "WAITING" && d.status !== "STARTING...") && (
+                          {(d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "FAILED" && d.status !== "READY" && d.status !== "WAITING" && d.status !== "STARTING...") && (
                             <div className="progress-bar-track">
-                              <div className="progress-bar-fill" style={{ width: `${Math.max(8, (d.progress || 0) * 100)}%` }} />
+                              <div className="progress-bar-fill" style={{ width: `${Math.max(8, Math.min(100, Math.round((d.progress || 0) * 100)))}%` }} />
                             </div>
                           )}
 
                           {d.status === "COMPLETED" && (
-                            <button 
-                              className="geometric-btn primary"
-                              style={{ marginTop: '8px', padding: '6px 12px', fontSize: '11px', width: '100%' }}
-                              onClick={() => triggerFileDownload(d.jobId, buildFileName(d), d.type)}
-                              disabled={downloadingIds.has(d.jobId)}
-                            >
-                              <Icons.Download />
-                              <span>{downloadingIds.has(d.jobId) ? 'PREPARANDO...' : (lang === 'es' ? 'GUARDAR' : 'SAVE')}</span>
-                            </button>
+                            <>
+                              <div className="progress-bar-track" style={{ marginBottom: '8px' }}>
+                                <div className="progress-bar-fill success" style={{ width: '100%' }} />
+                              </div>
+                              <button 
+                                className="geometric-btn primary"
+                                style={{ padding: '6px 12px', fontSize: '11px', width: '100%' }}
+                                onClick={() => triggerFileDownload(d.jobId, buildFileName(d), d.type)}
+                                disabled={downloadingIds.has(d.jobId)}
+                              >
+                                <Icons.Download />
+                                <span>{downloadingIds.has(d.jobId) ? (lang === 'es' ? 'PREPARANDO...' : 'PREPARING...') : (lang === 'es' ? 'GUARDAR' : 'SAVE')}</span>
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -984,7 +1050,8 @@ export default function App() {
                   onClick={handleDownloadAll} 
                   disabled={downloads.filter(d => d.status === "READY").length === 0}
                 >
-                  ⚡ {lang === 'es' ? 'Descargar Todos' : 'Download All'}
+                  <Icons.Download />
+                  <span>{lang === 'es' ? 'Descargar Todos' : 'Download All'}</span>
                 </button>
               </div>
             </div>

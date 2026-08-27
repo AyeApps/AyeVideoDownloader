@@ -23,12 +23,20 @@ const AyeLogo = ({ width = 56, color = '#FE9D01' }) => {
 
 export default function AuthScreen({
   apiBaseUrl = '',
+  currentLang = 'es',
+  onLangChange,
   onLoginSuccess
 }) {
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-  const [lang, setLang] = useState('es'); // 'es' | 'en'
+  const [lang, setLang] = useState(() => currentLang || localStorage.getItem('aye_lang') || localStorage.getItem('preferred_lang') || 'es');
   const [isDark, setIsDark] = useState(true);
   const [serverStatus, setServerStatus] = useState('online');
+
+  useEffect(() => {
+    if (currentLang && currentLang !== lang) {
+      setLang(currentLang);
+    }
+  }, [currentLang]);
 
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
@@ -68,7 +76,11 @@ export default function AuthScreen({
   const toggleLanguage = () => {
     const nextLang = lang === 'es' ? 'en' : 'es';
     setLang(nextLang);
-    try { localStorage.setItem('preferred_lang', nextLang); } catch {}
+    if (onLangChange) onLangChange(nextLang);
+    try { 
+      localStorage.setItem('preferred_lang', nextLang);
+      localStorage.setItem('aye_lang', nextLang);
+    } catch {}
   };
 
   const toggleTheme = () => {
