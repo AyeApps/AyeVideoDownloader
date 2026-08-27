@@ -246,7 +246,7 @@ export default function AuthScreen({
               <div className="ayetasks-auth-logo-box">
                 <AyeLogo width={56} color="#FE9D01" />
               </div>
-              <h1 className="ayetasks-hero-title font-mono">
+              <h1 className="ayetasks-hero-title">
                 {t.title}
               </h1>
             </div>
@@ -255,7 +255,7 @@ export default function AuthScreen({
             <div className="ayetasks-segmented-selector">
               <button
                 type="button"
-                className={`ayetasks-tab-button font-mono ${authMode === 'login' ? 'active' : ''}`}
+                className={`ayetasks-tab-button ${authMode === 'login' ? 'active' : ''}`}
                 onClick={() => { setAuthMode('login'); setIsAccountNotFound(false); setAuthError(''); }}
               >
                 <span className="ayetasks-tab-button-text">{t.login}</span>
@@ -263,7 +263,7 @@ export default function AuthScreen({
 
               <button
                 type="button"
-                className={`ayetasks-tab-button font-mono ${authMode === 'register' ? 'active' : ''}`}
+                className={`ayetasks-tab-button ${authMode === 'register' ? 'active' : ''}`}
                 onClick={() => { setAuthMode('register'); setIsAccountNotFound(false); setAuthError(''); }}
               >
                 <span className="ayetasks-tab-button-text">{t.register}</span>
@@ -338,7 +338,7 @@ export default function AuthScreen({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="ayetasks-hero-btn font-mono"
+                className="ayetasks-hero-btn"
               >
                 {isLoading ? (
                   <span>{t.processing}</span>
@@ -360,7 +360,7 @@ export default function AuthScreen({
                 <button
                   type="button"
                   onClick={() => setAuthError(t.oauthNotice)}
-                  className="ayetasks-social-btn google-btn font-mono"
+                  className="ayetasks-social-btn google-btn"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -375,7 +375,7 @@ export default function AuthScreen({
                 <button
                   type="button"
                   onClick={() => setAuthError(t.oauthNotice)}
-                  className="ayetasks-social-btn apple-btn font-mono"
+                  className="ayetasks-social-btn apple-btn"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-1.99.6-2.63 1.35-.57.66-.99 1.72-.85 2.76 1.01.08 2.03-.51 2.56-1.26z" />
