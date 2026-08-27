@@ -1010,14 +1010,14 @@ export default function App() {
 
                           {(d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "FAILED" && d.status !== "READY" && d.status !== "WAITING" && d.status !== "STARTING...") && (
                             <div className="progress-bar-track">
-                              <div className="progress-bar-fill" style={{ width: `${Math.max(8, Math.min(100, Math.round((d.progress || 0) * 100)))}%` }} />
+                              <div className="progress-bar-fill" style={{ transform: `scaleX(${Math.max(0.08, Math.min(1, d.progress || 0))})` }} />
                             </div>
                           )}
 
                           {d.status === "COMPLETED" && (
                             <>
                               <div className="progress-bar-track" style={{ marginBottom: '8px' }}>
-                                <div className="progress-bar-fill success" style={{ width: '100%' }} />
+                                <div className="progress-bar-fill success" style={{ transform: 'scaleX(1)' }} />
                               </div>
                               <button 
                                 className="geometric-btn primary"
@@ -1157,12 +1157,18 @@ export default function App() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="status-toast-notification">
+        <div className="status-toast-notification" role="status" aria-live="polite">
           <div className="toast-content">
-            <span className="toast-icon">⚡</span>
-            <span>{toastMessage.text}</span>
+            <div className="toast-icon-box">
+              <Icons.Download />
+            </div>
+            <div className="toast-body">
+              <span className="toast-title">{lang === 'es' ? 'TRANSFERENCIA EN CURSO' : 'TRANSFER IN PROGRESS'}</span>
+              <span className="toast-text">{toastMessage.text}</span>
+            </div>
           </div>
-          <button className="toast-close-btn" onClick={() => setToastMessage(null)}>✕</button>
+          <button className="toast-close-btn" onClick={() => setToastMessage(null)} aria-label="Close">✕</button>
+          <div className="toast-progress-line" />
         </div>
       )}
     </div>
