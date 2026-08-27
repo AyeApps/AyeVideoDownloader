@@ -26,7 +26,10 @@ async def create_download(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
-    if body.format == "audioMP3":
+    is_audio = body.format in ("audioMP3", "audio")
+    normalized_format = "audioMP3" if is_audio else "videoMP4"
+
+    if is_audio:
         fmt_string = None
     elif body.selected_format_id:
         fmt_string = FormatService.build_format_string_from_id(body.selected_format_id)
@@ -36,7 +39,7 @@ async def create_download(
     job = DownloadJob(
         user_id=str(current_user.id),
         url=str(body.url),
-        format=body.format,
+        format=normalized_format,
         quality=body.quality,
         codec=body.codec,
         hdr=body.hdr,

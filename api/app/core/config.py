@@ -54,8 +54,10 @@ class Settings(BaseSettings):
     rate_limit_downloads: str = "10/minute"
 
     ytdlp_cookies_path: str = ""
+    ytdlp_cookies_b64: str = ""
+    ytdlp_cookies_text: str = ""
     ytdlp_proxy: str = ""
-    ytdlp_player_client: str = "android,tv,web"
+    ytdlp_player_client: str = "ios,tv,android,web"
     ytdlp_js_runtimes: str = "deno"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

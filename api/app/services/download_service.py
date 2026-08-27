@@ -62,7 +62,7 @@ class DownloadService:
         output_template = str(output_dir / "%(title)s.%(ext)s")
         base_args = get_base_ytdlp_args()
         
-        if job.format == "audioMP3":
+        if job.format in ("audioMP3", "audio"):
             return base_args + ["--no-playlist", "-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]
         
         return base_args + ["--no-playlist", "-f", job.format_string or "bestvideo+bestaudio/best", "--merge-output-format", "mp4",

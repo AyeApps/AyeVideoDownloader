@@ -434,8 +434,8 @@ export default function App() {
           },
           body: JSON.stringify({
             url: d.url,
-            format: d.type === 'audio' ? 'audioMP3' : 'video',
-            quality: d.quality,
+            format: d.type === 'audio' ? 'audioMP3' : 'videoMP4',
+            quality: 'best',
             selected_format_id: d.type === 'audio' ? null : d.quality
           })
         })

@@ -35,10 +35,10 @@ class BuildFormatStringResponse(BaseModel):
 
 class CreateDownloadRequest(BaseModel):
     url: HttpUrl
-    format: Literal["videoMP4", "audioMP3"] = "videoMP4"
-    quality: Literal["best","2160","1440","1080","720","480","360"] = "best"
-    codec: Literal["any","h264","h265","vp9","av1"] = "any"
-    hdr: Literal["any","sdr","hdr"] = "any"
+    format: str = "videoMP4"
+    quality: str = "best"
+    codec: str = "any"
+    hdr: str = "any"
     selected_format_id: Optional[str] = None
 
 class DownloadJobResponse(BaseModel):
