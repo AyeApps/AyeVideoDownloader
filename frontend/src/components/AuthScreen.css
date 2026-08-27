@@ -1,472 +1,411 @@
-/* ─── AyeApps ID / AuthScreen Unified Theme ──────────────────────────── */
+/* ─── Exact 1-to-1 Match with AyeTasks AuthScreen ─────────────────────── */
 
-:root {
-  --accent-amber: #FE9D01;
-  --accent-amber-subtle: rgba(254, 157, 1, 0.12);
-  --accent-amber-border: rgba(254, 157, 1, 0.35);
-}
-
-.aye-auth-root {
+.ayetasks-auth-root {
   min-height: 100vh;
   width: 100vw;
   position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
-  justify-content: flex-start;
-  transition: background-color 0.25s ease, color 0.25s ease;
-  overflow-x: hidden;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  transition: background-color 0.2s ease;
 }
 
-.aye-auth-root.dark {
-  background-color: #050505;
-  color: #ededed;
-  --aye-card-bg: #0d0d0d;
-  --aye-card-border: #222222;
-  --aye-input-bg: #141414;
-  --aye-input-border: #262626;
-  --aye-text-muted: #888888;
-  --aye-dot-color: rgba(255, 255, 255, 0.04);
-  --aye-btn-bg: #ffffff;
-  --aye-btn-text: #050505;
-  --aye-social-bg: #141414;
-  --aye-social-border: #262626;
+.ayetasks-auth-root.dark {
+  background-color: #000000;
+  color: #ffffff;
+  --bg-base: #000000;
+  --bg-surface: #121212;
+  --border-color: #ffffff;
+  --text-primary: #ffffff;
+  --text-invert: #000000;
+  --text-muted: #888888;
+  --accent-color: #FE9D01;
+  --shadow-color: rgba(255, 255, 255, 0.08);
+  --dot-color: rgba(255, 255, 255, 0.12);
+  --apple-btn-bg: #FFFFFF;
+  --apple-btn-text: #000000;
+  --apple-btn-border: #FFFFFF;
 }
 
-.aye-auth-root.light {
-  background-color: #fafafa;
-  color: #121212;
-  --aye-card-bg: #ffffff;
-  --aye-card-border: #e5e5e5;
-  --aye-input-bg: #f5f5f5;
-  --aye-input-border: #e0e0e0;
-  --aye-text-muted: #666666;
-  --aye-dot-color: rgba(0, 0, 0, 0.04);
-  --aye-btn-bg: #121212;
-  --aye-btn-text: #ffffff;
-  --aye-social-bg: #f7f7f7;
-  --aye-social-border: #e5e5e5;
+.ayetasks-auth-root.light {
+  background-color: #F8F9FA;
+  color: #000000;
+  --bg-base: #FFFFFF;
+  --bg-surface: #F0F2F5;
+  --border-color: #000000;
+  --text-primary: #000000;
+  --text-invert: #FFFFFF;
+  --text-muted: #666666;
+  --accent-color: #FE9D01;
+  --shadow-color: rgba(0, 0, 0, 0.12);
+  --dot-color: rgba(0, 0, 0, 0.12);
+  --apple-btn-bg: #000000;
+  --apple-btn-text: #FFFFFF;
+  --apple-btn-border: #000000;
 }
 
-/* Background Dot Matrix */
-.aye-auth-dots {
+/* Background Dotted Matrix (Exact grid match) */
+.ayetasks-auth-root::before {
+  content: '';
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(var(--aye-dot-color) 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
+  background-image: radial-gradient(var(--dot-color) 1.2px, transparent 1.2px);
+  background-size: 32px 32px;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Top Header Bar */
-.aye-auth-header {
-  width: 100%;
-  max-width: 1200px;
-  padding: 20px 24px;
+/* Top Right Controls */
+.ayetasks-top-controls {
+  position: absolute;
+  top: 24px;
+  right: 24px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+  z-index: 100;
+}
+
+.ayetasks-control-btn {
+  height: 44px;
+  border: 2px solid var(--border-color);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 3px 3px 0px 0px var(--border-color);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.ayetasks-control-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px var(--border-color);
+}
+
+.ayetasks-theme-btn {
+  width: 44px;
+}
+
+.ayetasks-lang-btn {
+  padding: 0 12px;
+  gap: 6px;
+}
+
+.ayetasks-lang-text {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+}
+
+/* Centered View */
+.ayetasks-centered-view {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
   position: relative;
   z-index: 10;
 }
 
-.aye-telemetry-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--aye-card-bg);
-  border: 1px solid var(--aye-card-border);
-  border-radius: 2px;
+/* Tech Frame Box */
+.ayetasks-tech-frame {
+  width: 100%;
+  max-width: 480px;
+  border: 2px solid var(--border-color);
+  background-color: var(--bg-base);
+  position: relative;
+  padding-top: 52px;
+  box-shadow: 12px 12px 0px 0px var(--shadow-color);
 }
 
-.aye-telemetry-dot {
+@media (max-width: 600px) {
+  .ayetasks-tech-frame {
+    max-width: 100%;
+    padding-top: 44px;
+  }
+}
+
+/* Pinned Tech Badge (Top Left of Card) */
+.ayetasks-tech-badge {
+  position: absolute;
+  top: -14px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  background-color: var(--bg-base);
+  border: 2px solid #10b981;
+}
+
+.ayetasks-status-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-}
-
-.aye-telemetry-dot.online {
   background-color: #10b981;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-  animation: pulse-dot 2s infinite;
 }
 
-.aye-telemetry-dot.checking {
-  background-color: #f59e0b;
-}
-
-.aye-telemetry-dot.offline {
+.ayetasks-status-dot.offline {
   background-color: #ef4444;
 }
 
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.15); }
+.ayetasks-status-dot.checking {
+  background-color: #f59e0b;
 }
 
-.aye-telemetry-text {
+.ayetasks-tech-badge-text {
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--aye-text-muted);
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #10b981;
 }
 
-.aye-auth-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Frame Content */
+.ayetasks-tech-frame-content {
+  padding: 0 32px 36px 32px;
 }
 
-.aye-control-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--aye-card-bg);
-  border: 1px solid var(--aye-card-border);
-  color: inherit;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: all 0.15s ease;
+@media (max-width: 480px) {
+  .ayetasks-tech-frame-content {
+    padding: 0 20px 24px 20px;
+  }
 }
 
-.aye-control-btn:hover {
-  border-color: var(--accent-amber);
-  color: var(--accent-amber);
-}
-
-/* Card Wrapper */
-.aye-auth-card-wrapper {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  width: 100%;
-  position: relative;
-  z-index: 10;
-}
-
-.aye-auth-card {
-  width: 100%;
-  max-width: 440px;
-  background: var(--aye-card-bg);
-  border: 1px solid var(--aye-card-border);
-  border-radius: 4px;
-  padding: 36px 32px;
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.35);
-  position: relative;
-}
-
-/* Precision Bracket Corners */
-.aye-auth-card::before,
-.aye-auth-card::after {
-  content: '';
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-color: var(--accent-amber);
-  pointer-events: none;
-}
-
-.aye-auth-card::before {
-  top: -1px;
-  left: -1px;
-  border-top: 2px solid;
-  border-left: 2px solid;
-}
-
-.aye-auth-card::after {
-  bottom: -1px;
-  right: -1px;
-  border-bottom: 2px solid;
-  border-right: 2px solid;
-}
-
-/* Branding */
-.aye-auth-branding {
-  text-align: center;
+/* Title Section */
+.ayetasks-title-section {
   margin-bottom: 24px;
+  text-align: left;
+}
+
+.ayetasks-auth-logo-box {
+  margin-bottom: 16px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  justify-content: flex-start;
 }
 
-.aye-logo-container {
-  margin-bottom: 12px;
-  color: var(--accent-amber);
+.ayetasks-hero-title {
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.1;
 }
 
-.aye-system-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--accent-amber);
-  background: var(--accent-amber-subtle);
-  border: 1px solid var(--accent-amber-border);
-  padding: 3px 8px;
-  border-radius: 2px;
-  margin-bottom: 10px;
-}
-
-.aye-auth-title {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  margin: 0 0 6px 0;
-}
-
-.aye-auth-subtitle {
-  font-size: 12px;
-  color: var(--aye-text-muted);
-  line-height: 1.4;
-  max-width: 320px;
-}
-
-/* Mode Tabs */
-.aye-mode-tabs {
+/* Segmented Selector Tabs */
+.ayetasks-segmented-selector {
   display: flex;
-  border: 1px solid var(--aye-card-border);
-  border-radius: 2px;
-  background: var(--aye-input-bg);
-  margin-bottom: 20px;
-  overflow: hidden;
+  border: 2px solid var(--border-color);
+  background-color: var(--bg-surface);
+  margin-bottom: 24px;
 }
 
-.aye-mode-tab {
+.ayetasks-tab-button {
   flex: 1;
-  padding: 10px 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  padding: 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
   background: transparent;
-  color: var(--aye-text-muted);
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.aye-mode-tab.active {
-  background: var(--aye-btn-bg);
-  color: var(--aye-btn-text);
+.ayetasks-tab-button.active {
+  background-color: var(--text-primary);
 }
 
-/* Social Buttons */
-.aye-social-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.aye-social-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--aye-social-bg);
-  border: 1px solid var(--aye-social-border);
-  border-radius: 2px;
-  color: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.aye-social-btn:hover {
-  border-color: var(--accent-amber-border);
-}
-
-/* Divider */
-.aye-auth-divider {
-  display: flex;
-  align-items: center;
-  margin: 16px 0 20px 0;
-}
-
-.aye-divider-line {
-  flex: 1;
-  height: 1px;
-  background: var(--aye-card-border);
-}
-
-.aye-divider-text {
-  padding: 0 12px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--aye-text-muted);
-}
-
-/* Form */
-.aye-auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.aye-input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  text-align: left;
-}
-
-.aye-input-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.aye-input-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--aye-text-muted);
-}
-
-.aye-input-toggle {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--accent-amber);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.aye-input {
-  width: 100%;
-  padding: 11px 14px;
-  background: var(--aye-input-bg);
-  border: 1px solid var(--aye-input-border);
-  border-radius: 2px;
-  color: inherit;
+.ayetasks-tab-button-text {
   font-size: 13px;
-  outline: none;
-  transition: border-color 0.15s ease;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  color: var(--text-primary);
 }
 
-.aye-input:focus {
-  border-color: var(--accent-amber);
+.ayetasks-tab-button.active .ayetasks-tab-button-text {
+  color: var(--text-invert);
 }
 
-/* Extras */
-.aye-form-extras {
+/* Form Container */
+.ayetasks-form-container {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.aye-checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  color: var(--aye-text-muted);
-}
-
-.aye-checkbox {
-  accent-color: var(--accent-amber);
-}
-
-/* Alert */
-.aye-alert-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 2px;
-}
-
-.aye-register-hint {
-  background: none;
-  border: none;
-  color: var(--accent-amber);
-  font-size: 11px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 2px 0;
-}
-
-/* Submit Button */
-.aye-submit-btn {
+/* Inputs */
+.ayetasks-geometric-input {
   width: 100%;
-  padding: 13px 20px;
-  background: var(--aye-btn-bg);
-  color: var(--aye-btn-text);
-  border: 1px solid transparent;
-  border-radius: 2px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  border: 2px solid var(--border-color);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  padding: 16px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  outline: none;
+  min-height: 52px;
+  border-radius: 0;
+}
+
+.ayetasks-geometric-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ayetasks-geometric-input:focus {
+  border-color: var(--accent-color);
+}
+
+/* Hero Amber Button */
+.ayetasks-hero-btn {
+  width: 100%;
+  border: 2px solid var(--border-color);
+  background-color: var(--accent-color);
+  color: #000000;
+  padding: 16px 20px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
-  margin-top: 6px;
+  min-height: 52px;
+  box-shadow: 4px 4px 0px 0px var(--border-color);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
-.aye-submit-btn:hover:not(:disabled) {
-  background: var(--accent-amber);
-  color: #000000;
+.ayetasks-hero-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px 0px var(--border-color);
 }
 
-.aye-submit-btn:disabled {
-  opacity: 0.6;
+.ayetasks-hero-btn:disabled {
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
-.aye-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+/* Divider */
+.ayetasks-divider-row {
+  display: flex;
+  align-items: center;
+  margin: 12px 0;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.ayetasks-divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: var(--border-color);
+  opacity: 0.4;
 }
 
-/* Footer */
-.aye-card-footer {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--aye-card-border);
-  text-align: center;
+.ayetasks-divider-text {
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+}
+
+/* Social Login Buttons */
+.ayetasks-social-container {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
 }
 
-.aye-terms-text {
-  font-size: 10px;
-  color: var(--aye-text-muted);
-  line-height: 1.4;
+.ayetasks-social-btn {
+  width: 100%;
+  min-height: 50px;
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0px 0px var(--border-color);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
-.aye-credit-text {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--accent-amber);
+.ayetasks-social-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px var(--border-color);
+}
+
+.ayetasks-social-btn.google-btn {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.ayetasks-social-btn.apple-btn {
+  background-color: var(--apple-btn-bg);
+  border-color: var(--apple-btn-border);
+  color: var(--apple-btn-text);
+}
+
+/* Alert Boxes */
+.ayetasks-error-alert-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1.5px solid #ef4444;
+  color: #ef4444;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+}
+
+.ayetasks-suggest-register-box {
+  border: 1.5px solid var(--accent-color);
+  background-color: rgba(254, 157, 1, 0.08);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.ayetasks-suggest-title {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  color: var(--accent-color);
+}
+
+.ayetasks-suggest-desc {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-primary);
+}
+
+.ayetasks-suggest-btn {
+  border: 1.5px solid var(--accent-color);
+  background-color: var(--bg-base);
+  color: var(--accent-color);
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px 0px var(--accent-color);
 }
 
 .font-mono {
