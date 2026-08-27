@@ -9,9 +9,15 @@ def get_base_ytdlp_args() -> List[str]:
         "--prefer-free-formats",
     ]
 
+    # Enable remote components for YouTube JS challenge solving
+    args.extend(["--remote-components", "ejs:github"])
+
     # JS Runtimes for signature deciphering
     if settings.ytdlp_js_runtimes:
-        args.extend(["--js-runtimes", settings.ytdlp_js_runtimes])
+        for rt in settings.ytdlp_js_runtimes.split(","):
+            cleaned = rt.strip()
+            if cleaned:
+                args.extend(["--js-runtimes", cleaned])
 
     # Player client (only set if customized, default lets yt-dlp select automatically)
     if settings.ytdlp_player_client and settings.ytdlp_player_client != "default":
