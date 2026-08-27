@@ -11,7 +11,19 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const PYTHON_API_URL = process.env.PYTHON_API_URL || 'https://ayevideodownloader-production.up.railway.app/api/v1';
+let rawPythonUrl = process.env.PYTHON_API_URL || 'https://api-ayvddw.ayeapps.com/api/v1';
+
+// Prevent loopback if PYTHON_API_URL was mistakenly set to the BFF's own public domain (back-ayvddw.ayeapps.com)
+if (rawPythonUrl.includes('back-ayvddw.ayeapps.com')) {
+    console.warn(`[WARNING] Loopback detected: PYTHON_API_URL was pointing to BFF itself (back-ayvddw.ayeapps.com). Overriding to https://api-ayvddw.ayeapps.com/api/v1`);
+    rawPythonUrl = 'https://api-ayvddw.ayeapps.com/api/v1';
+}
+
+if (!rawPythonUrl.endsWith('/api/v1') && !rawPythonUrl.endsWith('/api')) {
+    rawPythonUrl = `${rawPythonUrl.replace(/\/+$/, '')}/api/v1`;
+}
+
+const PYTHON_API_URL = rawPythonUrl;
 
 // Web Backend BFF (Backend for Frontend)
 // Orchestrates calls to the Python microservice and handles Web-specific logic

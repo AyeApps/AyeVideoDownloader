@@ -100,7 +100,7 @@ export default function App() {
     }
   });
 
-  const API_BASE_URL = import.meta.env.VITE_BFF_URL || 'https://api-ayvddw.ayeapps.com';
+  const API_BASE_URL = import.meta.env.VITE_BFF_URL || 'https://back-ayvddw.ayeapps.com';
 
   const [token, setToken] = useState(localStorage.getItem('aye_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('aye_email') || '');
@@ -149,6 +149,12 @@ export default function App() {
   };
 
   const getStatusLabel = (d, l) => {
+    if (d.status === "FETCHING") {
+      const pct = Math.round(d.detectionProgress || 15);
+      return `${l === 'es' ? 'ANALIZANDO FORMATOS' : 'ANALYZING FORMATS'} ${pct}%`;
+    }
+    if (d.status === "FETCHED") return l === 'es' ? "¡FORMATOS DETECTADOS!" : "FORMATS READY!";
+    if (d.status === "READY") return l === 'es' ? "LISTO PARA DESCARGA" : "READY TO DOWNLOAD";
     if (d.status === "WAITING") return l === 'es' ? "EN ESPERA" : "WAITING";
     if (d.status === "STARTING...") return l === 'es' ? "INICIANDO..." : "STARTING...";
     if (d.status === "ERROR" || d.status === "FAILED") return l === 'es' ? "ERROR" : "ERROR";
@@ -301,7 +307,8 @@ export default function App() {
       url: rawUrl,
       type: globalSettings.format,
       name: lang === 'es' ? "DETECTANDO INFORMACIÓN..." : "DETECTING VIDEO...",
-      status: "WAITING",
+      status: "FETCHING",
+      detectionProgress: 18,
       quality: "fallback",
       options: [{ id: "fallback", label: lang === 'es' ? "DETECTANDO..." : "DETECTING..." }]
     };
@@ -309,6 +316,17 @@ export default function App() {
     setDownloads(prev => [...prev, newDownload]);
     setLinkInput("");
     setViewState("table");
+
+    // Optimistic progress ticker (advances smoothly while waiting for server response)
+    const progressTimer = setInterval(() => {
+      setDownloads(prev => prev.map(d => {
+        if (d.id !== id || d.status !== "FETCHING") return d;
+        const current = d.detectionProgress || 18;
+        // Asymptotically approach 92% smoothly
+        const next = Math.min(92, current + (92 - current) * 0.18);
+        return { ...d, detectionProgress: next };
+      }));
+    }, 180);
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/formats`, {
@@ -319,13 +337,19 @@ export default function App() {
         },
         body: JSON.stringify({ url: rawUrl })
       });
-      if (res.status === 401) { handleLogout(); return; }
+      if (res.status === 401) { 
+        clearInterval(progressTimer);
+        handleLogout(); 
+        return; 
+      }
       const data = await res.json();
       
       if (!res.ok || !data.formats || data.formats.length === 0) {
         throw new Error(data.error || "Failed to detect video");
       }
       
+      clearInterval(progressTimer);
+
       const formattedOptions = data.formats.map(f => {
         if (f.id === 'audio_only' || f.vcodec === 'none') return { id: f.id, label: 'AUDIO MP3', raw: f };
         
@@ -349,6 +373,7 @@ export default function App() {
       });
       const preferred = getPreferredFormat(formattedOptions, globalSettings);
 
+      // Instant optimistic jump to 100% completed
       setDownloads(prev => prev.map(d => 
         d.id === id ? { 
           ...d, 
@@ -356,16 +381,27 @@ export default function App() {
           thumbnail: data.thumbnail || '',
           options: formattedOptions, 
           quality: preferred, 
-          status: "READY" 
+          status: "FETCHED",
+          detectionProgress: 100
         } : d
       ));
+
+      // After 350ms, mark as READY
+      setTimeout(() => {
+        setDownloads(prev => prev.map(d => 
+          d.id === id ? { ...d, status: "READY" } : d
+        ));
+      }, 350);
+
     } catch {
+      clearInterval(progressTimer);
       setDownloads(prev => prev.map(d => 
         d.id === id ? { 
           ...d, 
           name: lang === 'es' ? "ERROR AL DETECTAR VIDEO" : "ERROR DETECTING VIDEO", 
           status: "ERROR", 
           quality: "error",
+          detectionProgress: 0,
           options: [{ id: "error", label: "UNAVAILABLE" }]
         } : d
       ));
@@ -801,7 +837,7 @@ export default function App() {
                 {lang === 'es' ? 'ESTADO DEL SISTEMA // AYEAPPS' : 'SYSTEM STATUS // AYEAPPS'}
               </div>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>• {lang === 'es' ? 'SERVICIO BFF:' : 'BFF SERVICE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'EN LÍNEA' : 'ONLINE'} [api-ayvddw.ayeapps.com]</span></div>
+                <div>• {lang === 'es' ? 'SERVICIO BFF:' : 'BFF SERVICE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'EN LÍNEA' : 'ONLINE'} [back-ayvddw.ayeapps.com]</span></div>
                 <div>• {lang === 'es' ? 'MOTOR PRINCIPAL:' : 'CORE ENGINE:'} <span style={{ color: 'var(--accent-amber)' }}>AYE-YT-DLP 2026.8</span></div>
                 <div>• {lang === 'es' ? 'BASE DE DATOS:' : 'DATABASE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'MONGODB ACTIVO' : 'MONGODB ACTIVE'}</span></div>
                 <div>• {lang === 'es' ? 'SESIÓN DE USUARIO:' : 'USER SESSION:'} <span>{userEmail}</span></div>
@@ -1032,13 +1068,23 @@ export default function App() {
                             {getStatusLabel(d, lang)}
                           </span>
                           
+                          {/* Optimistic Detection Loading Bar */}
+                          {(d.status === "FETCHING" || d.status === "FETCHED") && (
+                            <div className="progress-bar-track" style={{ width: '100%' }}>
+                              <div 
+                                className={`progress-bar-fill ${d.status === "FETCHED" ? 'success' : ''}`} 
+                                style={{ width: `${Math.round(d.detectionProgress || 18)}%` }} 
+                              />
+                            </div>
+                          )}
+                          
                           {(d.status === "WAITING" || d.status === "STARTING...") && (
                             <div className="progress-bar-track" style={{ width: '100%' }}>
                               <div className="progress-bar-fill indeterminate" />
                             </div>
                           )}
 
-                          {(d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "FAILED" && d.status !== "READY" && d.status !== "WAITING" && d.status !== "STARTING...") && (
+                          {(d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "FAILED" && d.status !== "READY" && d.status !== "WAITING" && d.status !== "STARTING..." && d.status !== "FETCHING" && d.status !== "FETCHED") && (
                             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                               {d.type === 'video' ? (
                                 <>
