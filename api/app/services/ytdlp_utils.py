@@ -5,10 +5,17 @@ from app.core.config import settings
 
 def get_base_ytdlp_args() -> List[str]:
     args: List[str] = [
-        "--js-runtimes", settings.ytdlp_js_runtimes,
-        "--extractor-args", f"youtube:player_client={settings.ytdlp_player_client}",
-        "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1",
+        "--no-check-certificates",
+        "--prefer-free-formats",
     ]
+
+    # JS Runtimes for signature deciphering
+    if settings.ytdlp_js_runtimes:
+        args.extend(["--js-runtimes", settings.ytdlp_js_runtimes])
+
+    # Player client (only set if customized, default lets yt-dlp select automatically)
+    if settings.ytdlp_player_client and settings.ytdlp_player_client != "default":
+        args.extend(["--extractor-args", f"youtube:player_client={settings.ytdlp_player_client}"])
 
     # Cookie support: env Base64, env Text, explicitly configured path, or default /app/cookies.txt
     cookies_target = "/tmp/ytdlp_cookies.txt"

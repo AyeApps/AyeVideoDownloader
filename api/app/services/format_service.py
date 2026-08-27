@@ -43,12 +43,17 @@ class FormatService:
         )
         stdout, stderr = await proc.communicate()
 
-        if proc.returncode != 0:
+        info = None
+        if stdout:
+            try:
+                info = json.loads(stdout.decode("utf-8"))
+            except Exception:
+                info = None
+
+        if not info:
             err = stderr.decode("utf-8", errors="replace")[:500]
             logger.warning("yt-dlp -j falló: url=%s err=%s", url, err)
             raise ValueError(f"No se pudo obtener información: {err}")
-
-        info = json.loads(stdout.decode("utf-8"))
         raw_formats = info.get("formats", [])
 
         video_formats = []

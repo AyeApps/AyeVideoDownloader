@@ -57,8 +57,8 @@ class Settings(BaseSettings):
     ytdlp_cookies_b64: str = ""
     ytdlp_cookies_text: str = ""
     ytdlp_proxy: str = ""
-    ytdlp_player_client: str = "ios,tv,android,web"
-    ytdlp_js_runtimes: str = "deno"
+    ytdlp_player_client: str = "default"
+    ytdlp_js_runtimes: str = "node,deno"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
