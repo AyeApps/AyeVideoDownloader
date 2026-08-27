@@ -107,6 +107,13 @@ export default function App() {
   const [userName, setUserName] = useState(localStorage.getItem('aye_name') || '');
   const [activeTab, setActiveTab] = useState('queue');
   const [downloadingIds, setDownloadingIds] = useState(new Set());
+  const [toastMessage, setToastMessage] = useState(null);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
 
   // Apply Theme
   useEffect(() => {
@@ -144,9 +151,13 @@ export default function App() {
   const getStatusLabel = (d, l) => {
     if (d.status === "WAITING") return l === 'es' ? "EN ESPERA" : "WAITING";
     if (d.status === "STARTING...") return l === 'es' ? "INICIANDO..." : "STARTING...";
-    if (d.status === "READY") return l === 'es' ? "LISTO" : "READY";
-    if (d.status === "COMPLETED") return l === 'es' ? "COMPLETADO" : "COMPLETED";
     if (d.status === "ERROR" || d.status === "FAILED") return l === 'es' ? "ERROR" : "ERROR";
+    
+    if (d.jobId && downloadingIds.has(d.jobId)) {
+      return l === 'es' ? "TRANSFIRIENDO AL NAVEGADOR..." : "TRANSFERRING TO BROWSER...";
+    }
+
+    if (d.status === "COMPLETED") return l === 'es' ? "COMPLETADO" : "COMPLETED";
     
     const statusLower = (d.status || '').toLowerCase();
     if (statusLower.includes('download') || d.status === 'DOWNLOADING') {
@@ -402,30 +413,31 @@ export default function App() {
     return `${safeTitle}${tag}.${ext}`;
   };
 
-  const triggerFileDownload = async (jobId, fallbackName, fileType) => {
+  const triggerFileDownload = (jobId, fallbackName, fileType) => {
     setDownloadingIds(prev => new Set([...prev, jobId]));
     try {
-      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
-      const res = await fetch(downloadUrl);
-      if (res.status === 401) { handleLogout(); return; }
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      
       const fileName = fallbackName || `video_${jobId}.${fileType === 'audio' ? 'mp3' : 'mp4'}`;
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
       
       const a = document.createElement('a');
-      a.href = blobUrl;
+      a.href = downloadUrl;
       a.download = fileName;
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+      setToastMessage({
+        text: lang === 'es' 
+          ? `✓ Transfiriendo "${fileName}" a tu navegador...` 
+          : `✓ Transferring "${fileName}" to your browser...`
+      });
     } catch {
-      alert(lang === 'es' ? 'Error al descargar el archivo. Intenta de nuevo.' : 'Failed to download file. Please retry.');
+      alert(lang === 'es' ? 'Error al iniciar descarga del archivo. Intenta de nuevo.' : 'Failed to download file. Please retry.');
     } finally {
-      setDownloadingIds(prev => { const s = new Set(prev); s.delete(jobId); return s; });
+      setTimeout(() => {
+        setDownloadingIds(prev => { const s = new Set(prev); s.delete(jobId); return s; });
+      }, 3500);
     }
   };
 
@@ -1142,6 +1154,17 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="status-toast-notification">
+          <div className="toast-content">
+            <span className="toast-icon">⚡</span>
+            <span>{toastMessage.text}</span>
+          </div>
+          <button className="toast-close-btn" onClick={() => setToastMessage(null)}>✕</button>
+        </div>
+      )}
     </div>
   );
 }
