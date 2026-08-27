@@ -730,21 +730,6 @@ export default function App() {
                   <span className="hero-title-accent">{lang === 'es' ? 'OBTÉN VIDEO.' : 'GET VIDEO.'}</span>
                 </h1>
 
-                {/* Quick Format Mode Pills */}
-                <div className="format-mode-bar">
-                  <button 
-                    className={`format-mode-pill ${globalSettings.format === 'video' ? 'active' : ''}`}
-                    onClick={() => setGlobalSettings({ ...globalSettings, format: 'video' })}
-                  >
-                    🎬 {lang === 'es' ? 'VIDEO (4K / 1080P)' : 'VIDEO (4K / 1080P)'}
-                  </button>
-                  <button 
-                    className={`format-mode-pill ${globalSettings.format === 'audio' ? 'active' : ''}`}
-                    onClick={() => setGlobalSettings({ ...globalSettings, format: 'audio' })}
-                  >
-                    🎵 {lang === 'es' ? 'SOLO AUDIO (MP3 320K)' : 'AUDIO ONLY (MP3 320K)'}
-                  </button>
-                </div>
                 
                 <div className="input-group-hero">
                   <input 
