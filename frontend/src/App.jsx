@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
+import AuthScreen from './components/AuthScreen';
+import './components/AuthScreen.css';
 
 // Bold, thick SVGs to match the aesthetic
 const Icons = {
@@ -459,67 +461,18 @@ export default function App() {
 
   if (!token) {
     return (
-      <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="centered-view">
-          <div className="tech-frame" style={{ maxWidth: '440px', width: '100%', margin: '0 auto', padding: '0' }}>
-            <div className="tech-frame-content" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div className="tech-badge">STATUS: OFFLINE // AUTH REQUIRED</div>
-              
-              <h1 className="hero-title" style={{ fontSize: '32px', textAlign: 'left', margin: 0 }}>
-                <span style={{ display: 'block', fontSize: '14px', letterSpacing: '0.2em', opacity: 0.5, marginBottom: '16px' }}>SECURE ACCESS</span>
-                AYE VIDEO
-              </h1>
-
-              <div style={{ display: 'flex', border: 'var(--border-thick) solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', marginTop: '8px' }}>
-                <button 
-                  style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: authMode === 'login' ? 'var(--text-primary)' : 'transparent', color: authMode === 'login' ? 'var(--bg-primary)' : 'var(--text-primary)', fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                  onClick={() => { setAuthMode('login'); setAuthError(''); }}
-                >LOGIN</button>
-                <button 
-                  style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: authMode === 'register' ? 'var(--text-primary)' : 'transparent', color: authMode === 'register' ? 'var(--bg-primary)' : 'var(--text-primary)', fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                  onClick={() => { setAuthMode('register'); setAuthError(''); }}
-                >REGISTER</button>
-              </div>
-
-              <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {authMode === 'register' && (
-                  <input 
-                    className="geometric-input" 
-                    type="text" 
-                    placeholder="NAME" 
-                    value={authName} 
-                    onChange={e => setAuthName(e.target.value)} 
-                    autoComplete="name"
-                    required 
-                  />
-                )}
-                <input 
-                  className="geometric-input" 
-                  type="email" 
-                  placeholder="EMAIL" 
-                  value={authEmail} 
-                  onChange={e => setAuthEmail(e.target.value)} 
-                  autoComplete="username"
-                  required 
-                />
-                <input 
-                  className="geometric-input" 
-                  type="password" 
-                  placeholder="PASSWORD" 
-                  value={authPassword} 
-                  onChange={e => setAuthPassword(e.target.value)} 
-                  autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-                  required 
-                />
-                {authError && <div style={{ color: 'var(--error-color, red)', fontSize: '13px', fontWeight: 600, textAlign: 'left' }}>{authError}</div>}
-                <button className="geometric-btn primary hero-btn" type="submit" style={{ width: '100%', marginTop: '8px' }}>
-                  {authMode === 'login' ? 'INITIALIZE SESSION' : 'CREATE ACCOUNT'}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
+      <AuthScreen
+        apiBaseUrl={API_BASE_URL}
+        appName="AYE VIDEO DOWNLOADER"
+        onLoginSuccess={(data, emailUsed) => {
+          setToken(data.access_token);
+          setUserEmail(emailUsed);
+          setUserName(data.name || emailUsed.split('@')[0]);
+          localStorage.setItem('aye_token', data.access_token);
+          localStorage.setItem('aye_email', emailUsed);
+          localStorage.setItem('aye_name', data.name || emailUsed.split('@')[0]);
+        }}
+      />
     );
   }
 
@@ -700,51 +653,51 @@ export default function App() {
                       <td data-label="Status" style={{ minWidth: '180px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                           <span className="status-indicator" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {(d.status === "WAITING" || d.status === "DOWNLOADING" || (d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY")) ? <span className="status-dot pulsing"></span> : null}
-                          <span style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', color: d.status === 'ERROR' ? 'var(--error-color, red)' : 'inherit' }} title={d.status}>
-                            {d.status.startsWith('[DOWNLOAD]') ? `DOWNLOADING ${Math.round((d.progress || 0) * 100)}%` : 
-                             (d.status.startsWith('[MERGER]') || d.status.startsWith('[EXTRACTAUDIO]') ? 'PROCESSING / MERGING...' : d.status)}
+                            {(d.status === "WAITING" || d.status === "DOWNLOADING" || d.status === "STARTING..." || (d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY")) ? <span className="status-dot pulsing"></span> : null}
+                            <span style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', color: d.status === 'ERROR' ? 'var(--error-color, red)' : 'inherit' }} title={d.status}>
+                              {d.status.startsWith('[DOWNLOAD]') ? `DOWNLOADING ${Math.round((d.progress || 0) * 100)}%` : 
+                               (d.status.startsWith('[MERGER]') || d.status.startsWith('[EXTRACTAUDIO]') ? 'PROCESSING / MERGING...' : d.status)}
+                            </span>
                           </span>
-                        </span>
-                        
-                        {(d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY" && d.status !== "WAITING") && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', width: '100%' }}>
-                            <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', position: 'relative', overflow: 'hidden' }}>
-                              <div className={(d.currentPhase === 1 && d.progress >= 1) || d.status.includes('MERG') || d.status.includes('EXTRACT') ? 'progress-bar-processing' : ''} style={{ 
-                                position: 'absolute', top: 0, left: 0, height: '100%', 
-                                backgroundColor: 'var(--text-primary)', 
-                                width: (d.currentPhase === 2) ? '100%' : `${Math.max(5, (d.progress1 || 0) * 100)}%`,
-                                transition: 'width 0.3s ease'
-                              }} />
+                          
+                          {(d.status === "WAITING" || d.status === "STARTING...") && (
+                            <div className="progress-bar-track" style={{ marginTop: '8px' }}>
+                              <div className="progress-bar-fill progress-bar-processing progress-indeterminate" />
                             </div>
-                            
-                            {d.currentPhase === 2 && (
-                              <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', position: 'relative', overflow: 'hidden' }}>
-                                <div className={d.progress >= 1 || d.status.includes('MERG') || d.status.includes('EXTRACT') ? 'progress-bar-processing' : ''} style={{ 
-                                  position: 'absolute', top: 0, left: 0, height: '100%', 
-                                  backgroundColor: 'var(--text-primary)', 
-                                  width: `${Math.max(5, (d.progress2 || 0) * 100)}%`,
-                                  transition: 'width 0.3s ease'
+                          )}
+
+                          {(d.progress !== undefined && d.status !== "COMPLETED" && d.status !== "ERROR" && d.status !== "READY" && d.status !== "WAITING" && d.status !== "STARTING...") && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', width: '100%' }}>
+                              <div className="progress-bar-track">
+                                <div className="progress-bar-fill progress-bar-processing" style={{ 
+                                  width: (d.currentPhase === 2) ? '100%' : `${Math.max(5, (d.progress1 !== undefined ? d.progress1 : d.progress || 0) * 100)}%`
                                 }} />
                               </div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {d.status === "COMPLETED" && (
-                          <button 
-                            className="geometric-btn primary" 
-                            style={{ marginTop: '8px', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: downloadingIds.has(d.jobId) ? 0.6 : 1, width: '100%' }}
-                            onClick={() => triggerFileDownload(d.jobId, buildFileName(d), d.type)}
-                            disabled={downloadingIds.has(d.jobId)}
-                          >
-                            {downloadingIds.has(d.jobId) ? (
-                              <><span className="status-dot pulsing" style={{ width: '8px', height: '8px', flexShrink: 0 }} />PREPARANDO...</>
-                            ) : (
-                              <>↓ DESCARGAR ARCHIVO</>
-                            )}
-                          </button>
-                        )}
+                              
+                              {d.currentPhase === 2 && (
+                                <div className="progress-bar-track">
+                                  <div className="progress-bar-fill progress-bar-processing" style={{ 
+                                    width: `${Math.max(5, (d.progress2 || 0) * 100)}%`
+                                  }} />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {d.status === "COMPLETED" && (
+                            <button 
+                              className="geometric-btn primary" 
+                              style={{ marginTop: '8px', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: downloadingIds.has(d.jobId) ? 0.6 : 1, width: '100%' }}
+                              onClick={() => triggerFileDownload(d.jobId, buildFileName(d), d.type)}
+                              disabled={downloadingIds.has(d.jobId)}
+                            >
+                              {downloadingIds.has(d.jobId) ? (
+                                <><span className="status-dot pulsing" style={{ width: '8px', height: '8px', flexShrink: 0 }} />PREPARANDO...</>
+                              ) : (
+                                <>↓ DESCARGAR ARCHIVO</>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td data-label="Remove" style={{ textAlign: 'center' }}>

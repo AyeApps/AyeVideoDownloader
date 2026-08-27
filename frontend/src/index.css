@@ -2,6 +2,7 @@
 
 :root {
   --bg-primary: #ffffff;
+  --bg-secondary: #f3f3f3;
   --bg-invert: #000000;
   --border-color: #000000;
   --text-primary: #000000;
@@ -25,6 +26,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg-primary: #000000;
+    --bg-secondary: #1a1a1a;
     --bg-invert: #ffffff;
     --border-color: #ffffff;
     --text-primary: #ffffff;
@@ -73,24 +75,14 @@ input, select {
 .w-full { width: 100%; }
 
 /* Animations */
-@keyframes slideUpFade {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes gridMove {
-  0% { background-position: 0px 0px; }
-  100% { background-position: 32px 32px; }
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 @keyframes scrollLeft {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
-}
-
-@keyframes rowEnter {
-  0% { opacity: 0; transform: translateX(-20px); }
-  100% { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse {
@@ -116,9 +108,9 @@ input, select {
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  transition: transform 150ms var(--ease-out-quint), 
-              background-color 150ms var(--ease-out-quint), 
+  transition: background-color 150ms var(--ease-out-quint), 
               color 150ms var(--ease-out-quint),
+              border-color 150ms var(--ease-out-quint),
               box-shadow 200ms var(--ease-out-quint);
 }
 
@@ -127,8 +119,9 @@ input, select {
   color: var(--bg-primary);
 }
 
-.geometric-btn:active {
-  transform: scale(0.97);
+.geometric-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .geometric-btn.primary {
@@ -160,16 +153,16 @@ input, select {
   width: 100%;
   outline: none;
   transition: border-color 200ms var(--ease-out-quint),
+              box-shadow 200ms var(--ease-out-quint),
               background-color 200ms var(--ease-out-quint),
               color 200ms var(--ease-out-quint);
 }
 .geometric-input:focus {
-  background-color: var(--text-primary);
-  color: var(--bg-primary);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-color);
 }
 .geometric-input:focus::placeholder {
-  color: var(--bg-primary);
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .app-container {
@@ -200,13 +193,14 @@ input, select {
   transition: border-color 150ms var(--ease-out-quint),
               background-color 150ms var(--ease-out-quint),
               color 150ms var(--ease-out-quint),
-              transform 150ms var(--ease-out-quint);
+              box-shadow 150ms var(--ease-out-quint);
 }
 .icon-btn:hover {
   border-color: var(--border-color);
 }
-.icon-btn:active {
-  transform: scale(0.9);
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .main-content {
@@ -229,7 +223,6 @@ input, select {
   background-size: 32px 32px;
   background-position: center;
   background-color: var(--bg-primary);
-  animation: gridMove 5s linear infinite; /* Subtle continuous movement */
 }
 
 @media (prefers-color-scheme: light) {
@@ -251,7 +244,7 @@ input, select {
   max-width: 800px;
   width: 100%;
   box-shadow: 16px 16px 0px 0px var(--border-color);
-  animation: slideUpFade 500ms var(--ease-out-expo) forwards;
+  animation: fadeIn 200ms ease forwards;
 }
 
 .tech-frame-content {
@@ -345,7 +338,7 @@ input, select {
   background-size: 32px 32px;
   background-position: center;
   background-color: var(--bg-primary);
-  animation: slideUpFade 500ms var(--ease-out-expo) forwards, gridMove 8s linear infinite;
+  animation: fadeIn 200ms ease forwards;
 }
 
 .table-view-content {
@@ -486,7 +479,6 @@ input, select {
   padding: 20px 24px;
   text-align: left;
   border-bottom: var(--border-thick) solid var(--border-color);
-  transition: background-color 150ms ease, color 150ms ease;
 }
 .data-table tr:last-child td {
   border-bottom: none;
@@ -501,23 +493,8 @@ input, select {
   letter-spacing: 0.1em;
 }
 
-.data-table tr:hover td {
-  background-color: var(--text-primary);
-  color: var(--bg-primary);
-}
-.data-table tr:hover td .geometric-select {
-  color: var(--bg-primary);
-  border-color: var(--bg-primary);
-}
-.data-table tr:hover td .geometric-select option {
-  color: var(--text-primary);
-}
-.data-table tr:hover td .icon-btn {
-  color: var(--bg-primary);
-}
-
 .data-table tbody tr {
-  animation: rowEnter 400ms var(--ease-out-expo) forwards;
+  /* Cards remain solid and motionless on hover */
 }
 
 .status-indicator {
@@ -531,17 +508,12 @@ input, select {
   height: 8px;
   border-radius: 50%;
   background-color: var(--accent-color);
+  flex-shrink: 0;
+  display: inline-block;
 }
 
 .status-dot.pulsing {
-  animation: pulse 1.5s infinite;
-}
-
-/* Adapt dot color on hover inversion */
-.data-table tr:hover td .status-dot {
-  background-color: var(--bg-primary);
-  box-shadow: none;
-  animation: none;
+  animation: pulse 1.5s infinite ease-in-out;
 }
 
 .geometric-select {
@@ -554,11 +526,11 @@ input, select {
   outline: none;
   cursor: pointer;
   text-transform: uppercase;
-  transition: all 150ms ease;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease, color 150ms ease;
 }
 .geometric-select:focus {
-  background-color: var(--text-primary);
-  color: var(--bg-primary);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-color);
 }
 
 .status-bar {
@@ -659,13 +631,11 @@ input, select {
   border: var(--border-thick) solid var(--border-color);
   z-index: 100;
   opacity: 0;
-  transform: translateY(-10px);
   pointer-events: none;
-  transition: opacity 200ms var(--ease-out-expo), transform 200ms var(--ease-out-expo);
+  transition: opacity 150ms ease;
 }
 .profile-popover.open {
   opacity: 1;
-  transform: translateY(0);
   pointer-events: auto;
 }
 .profile-header {
@@ -686,15 +656,52 @@ input, select {
   margin-top: 4px;
 }
 
+.progress-bar-track {
+  width: 100%;
+  height: 8px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: var(--accent-color);
+  transition: width 0.3s ease;
+}
+
 .progress-bar-processing {
-  animation: indeterminateBar 1.5s infinite linear;
-  background-image: linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%, transparent);
-  background-size: 1rem 1rem;
+  animation: indeterminateBar 1s infinite linear;
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.35) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.35) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 16px 16px;
 }
 
 @keyframes indeterminateBar {
-  from { background-position: 1rem 0; }
+  from { background-position: 16px 0; }
   to { background-position: 0 0; }
+}
+
+.progress-indeterminate {
+  width: 45% !important;
+  animation: indeterminateSlide 1.5s infinite ease-in-out, indeterminateBar 1s infinite linear !important;
+}
+
+@keyframes indeterminateSlide {
+  0% { left: -45%; }
+  100% { left: 100%; }
 }
 
 /* Title Marquee Animation */
