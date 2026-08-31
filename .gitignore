@@ -1,1 +1,37 @@
+# Dependencies & environments
+venv/
 api/venv/
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+api/.pytest_cache/
+api/__pycache__/
+
+# Environment variables & secrets
+.env
+.env*
+api/.env
+api/.env*
+!.env.example
+!api/.env.example
+
+# macOS / IDE
+.DS_Store
+*/.DS_Store
+.idea/
+.vscode/
+
+# Build & temporary files
+build/
+DerivedData/
+*.tmp
+/tmp/
+
