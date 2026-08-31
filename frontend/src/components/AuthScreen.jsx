@@ -21,8 +21,11 @@ const AyeLogo = ({ width = 56, color = '#FE9D01' }) => {
   );
 };
 
+const GOOGLE_CLIENT_ID = "627799707976-gt9uudejrtd5d4b7pubkso0ev35j2rhr.apps.googleusercontent.com";
+const APPLE_CLIENT_ID = "com.ayeapps.auth.service";
+
 export default function AuthScreen({
-  apiBaseUrl = '',
+  authApiUrl = 'https://api-auth.ayeapps.com',
   currentLang = 'es',
   onLangChange,
   onLoginSuccess
@@ -45,30 +48,30 @@ export default function AuthScreen({
   const [authError, setAuthError] = useState('');
   const [isAccountNotFound, setIsAccountNotFound] = useState(false);
 
-  // Check server health
+  // Check server health on Central Auth API
   useEffect(() => {
     let mounted = true;
     const check = async () => {
       try {
-        const res = await fetch(`${apiBaseUrl}/health`);
+        const res = await fetch(`${authApiUrl}/health`);
         if (res.ok && mounted) setServerStatus('online');
         else if (mounted) setServerStatus('offline');
       } catch {
-        if (mounted) setServerStatus('online'); // default to online if CORS header not returning on /health
+        if (mounted) setServerStatus('online');
       }
     };
     check();
     return () => { mounted = false; };
-  }, [apiBaseUrl]);
+  }, [authApiUrl]);
 
   // Load remembered preferences
   useEffect(() => {
     try {
       const savedEmail = localStorage.getItem('aye_remembered_email');
       if (savedEmail) setAuthEmail(savedEmail);
-      const savedLang = localStorage.getItem('preferred_lang');
+      const savedLang = localStorage.getItem('preferred_lang') || localStorage.getItem('aye_lang');
       if (savedLang) setLang(savedLang);
-      const savedTheme = localStorage.getItem('theme');
+      const savedTheme = localStorage.getItem('theme') || localStorage.getItem('aye_theme');
       if (savedTheme) setIsDark(savedTheme === 'dark');
     } catch {}
   }, []);
@@ -86,7 +89,10 @@ export default function AuthScreen({
   const toggleTheme = () => {
     const nextDark = !isDark;
     setIsDark(nextDark);
-    try { localStorage.setItem('theme', nextDark ? 'dark' : 'light'); } catch {}
+    try { 
+      localStorage.setItem('theme', nextDark ? 'dark' : 'light');
+      localStorage.setItem('aye_theme', nextDark ? 'dark' : 'light');
+    } catch {}
   };
 
   const handleAuth = async (e) => {
@@ -111,12 +117,12 @@ export default function AuthScreen({
     setIsLoading(true);
 
     try {
-      const endpoint = authMode === 'register' ? '/api/auth/register' : '/api/auth/login';
+      const endpoint = authMode === 'register' ? '/api/v1/auth/register' : '/api/v1/auth/login';
       const payload = authMode === 'register'
-        ? { name: authName.trim() || 'USER', email: trimmedEmail, password: trimmedPassword }
-        : { email: trimmedEmail, password: trimmedPassword };
+        ? { name: authName.trim() || 'USUARIO AYE', email: trimmedEmail, password: trimmedPassword, app_client: 'video_downloader' }
+        : { email: trimmedEmail, password: trimmedPassword, app_client: 'video_downloader' };
 
-      const res = await fetch(`${apiBaseUrl}${endpoint}`, {
+      const res = await fetch(`${authApiUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -126,21 +132,16 @@ export default function AuthScreen({
 
       if (!res.ok) {
         const errorDetail = data.detail || data.error || (lang === 'es' ? 'CREDENCIALES INCORRECTAS' : 'INVALID CREDENTIALS');
-        if (authMode === 'login' && (res.status === 404 || errorDetail.toLowerCase().includes('not found') || errorDetail.toLowerCase().includes('no existe'))) {
+        if (authMode === 'login' && (res.status === 404 || errorDetail === 'ACCOUNT_NOT_FOUND' || errorDetail.toLowerCase().includes('not found') || errorDetail.toLowerCase().includes('no existe'))) {
           setIsAccountNotFound(true);
         }
-        throw new Error(errorDetail);
+        throw new Error(errorDetail === 'ACCOUNT_NOT_FOUND' ? (lang === 'es' ? 'LA CUENTA NO EXISTE' : 'ACCOUNT NOT FOUND') : errorDetail);
       }
 
       localStorage.setItem('aye_remembered_email', trimmedEmail);
 
-      if (authMode === 'register') {
-        setAuthMode('login');
-        setAuthError(lang === 'es' ? '¡CUENTA CREADA! POR FAVOR INICIA SESIÓN.' : 'ACCOUNT CREATED! PLEASE SIGN IN.');
-      } else {
-        if (onLoginSuccess) {
-          onLoginSuccess(data, trimmedEmail);
-        }
+      if (onLoginSuccess) {
+        onLoginSuccess(data, trimmedEmail);
       }
     } catch (err) {
       setAuthError(err.message.toUpperCase());
@@ -149,12 +150,91 @@ export default function AuthScreen({
     }
   };
 
+  // Google OAuth Login
+  const handleGoogleLogin = () => {
+    if (window.google?.accounts?.id) {
+      setIsLoading(true);
+      setAuthError('');
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          try {
+            if (!response.credential) throw new Error('No se recibió credencial de Google');
+            const res = await fetch(`${authApiUrl}/api/v1/auth/oauth/google`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id_token: response.credential, app_client: 'video_downloader' }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Error autenticando con Google');
+            if (onLoginSuccess) {
+              onLoginSuccess(data, data.user?.email || 'google_user@ayeapps.com');
+            }
+          } catch (err) {
+            setAuthError(err.message.toUpperCase());
+          } finally {
+            setIsLoading(false);
+          }
+        },
+      });
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          setIsLoading(false);
+        }
+      });
+    } else {
+      setAuthError(lang === 'es' ? 'SDK DE GOOGLE CARGANDO... REINTENTA EN 2 SEGUNDOS' : 'GOOGLE SDK LOADING... RETRY IN 2 SECONDS');
+    }
+  };
+
+  // Apple OAuth Login
+  const handleAppleLogin = async () => {
+    if (window.AppleID?.auth) {
+      try {
+        setIsLoading(true);
+        setAuthError('');
+        window.AppleID.auth.init({
+          clientId: APPLE_CLIENT_ID,
+          scope: 'name email',
+          redirectURI: `${authApiUrl}/api/v1/auth/oauth/apple/callback`,
+          usePopup: true,
+        });
+        const response = await window.AppleID.auth.signIn();
+        if (response?.authorization?.id_token) {
+          const res = await fetch(`${authApiUrl}/api/v1/auth/oauth/apple`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              identity_token: response.authorization.id_token,
+              email: response.user?.email,
+              name: response.user?.name ? `${response.user.name.firstName || ''} ${response.user.name.lastName || ''}`.trim() : undefined,
+              app_client: 'video_downloader',
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Error autenticando con Apple');
+          if (onLoginSuccess) {
+            onLoginSuccess(data, data.user?.email || 'apple_user@ayeapps.com');
+          }
+        }
+      } catch (err) {
+        if (err.error !== 'popup_closed_by_user') {
+          setAuthError((err.message || err.error || 'Error autenticando con Apple').toUpperCase());
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setAuthError(lang === 'es' ? 'SDK DE APPLE CARGANDO... REINTENTA EN 2 SEGUNDOS' : 'APPLE SDK LOADING... RETRY IN 2 SECONDS');
+    }
+  };
+
   const t = {
     es: {
       title: 'AYE-VIDEO',
-      serverOnline: 'SERVIDOR: EN LÍNEA',
-      serverOffline: 'SERVIDOR: DESCONECTADO',
-      serverChecking: 'VERIFICANDO SERVIDOR...',
+      serverOnline: 'CUENTA AYE: ACTIVA',
+      serverOffline: 'CUENTA AYE: DESCONECTADA',
+      serverChecking: 'VERIFICANDO CUENTA...',
       login: 'INICIAR SESIÓN',
       register: 'REGISTRO',
       name: 'NOMBRE',
@@ -164,18 +244,17 @@ export default function AuthScreen({
       createAccount: 'CREAR CUENTA',
       processing: 'PROCESANDO...',
       accountNotFoundTitle: 'LA CUENTA NO EXISTE',
-      accountNotFoundDesc: 'No existe ninguna cuenta registrada con este correo.',
-      suggestRegisterBtn: 'REGISTRARSE CON ESTE CORREO ➔',
+      accountNotFoundDesc: 'No existe ninguna cuenta registrada con este correo en el ecosistema.',
+      suggestRegisterBtn: 'CREAR CUENTA CON ESTE CORREO ➔',
       continueWithGoogle: 'CONTINUAR CON GOOGLE',
       continueWithApple: 'CONTINUAR CON APPLE',
-      orContinueWithEmail: '── MAS OPCIONES ──',
-      oauthNotice: 'Iniciando autenticación...'
+      orContinueWithEmail: '── O CON CORREO ──',
     },
     en: {
       title: 'AYE-VIDEO',
-      serverOnline: 'SERVER: ONLINE',
-      serverOffline: 'SERVER: OFFLINE',
-      serverChecking: 'CHECKING SERVER...',
+      serverOnline: 'AYE ACCOUNT: ACTIVE',
+      serverOffline: 'AYE ACCOUNT: OFFLINE',
+      serverChecking: 'CHECKING ACCOUNT...',
       login: 'SIGN IN',
       register: 'REGISTER',
       name: 'NAME',
@@ -185,12 +264,11 @@ export default function AuthScreen({
       createAccount: 'CREATE ACCOUNT',
       processing: 'PROCESSING...',
       accountNotFoundTitle: 'ACCOUNT NOT FOUND',
-      accountNotFoundDesc: 'No account registered with this email address.',
-      suggestRegisterBtn: 'REGISTER WITH THIS EMAIL ➔',
+      accountNotFoundDesc: 'No account registered with this email address in the ecosystem.',
+      suggestRegisterBtn: 'CREATE ACCOUNT WITH THIS EMAIL ➔',
       continueWithGoogle: 'CONTINUE WITH GOOGLE',
       continueWithApple: 'CONTINUE WITH APPLE',
-      orContinueWithEmail: '── MORE OPTIONS ──',
-      oauthNotice: 'Starting authentication...'
+      orContinueWithEmail: '── OR WITH EMAIL ──',
     }
   }[lang];
 
@@ -371,7 +449,8 @@ export default function AuthScreen({
                 {/* Google Sign In */}
                 <button
                   type="button"
-                  onClick={() => setAuthError(t.oauthNotice)}
+                  onClick={handleGoogleLogin}
+                  disabled={isLoading}
                   className="ayetasks-social-btn google-btn"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24">
@@ -386,7 +465,8 @@ export default function AuthScreen({
                 {/* Apple Sign In */}
                 <button
                   type="button"
-                  onClick={() => setAuthError(t.oauthNotice)}
+                  onClick={handleAppleLogin}
+                  disabled={isLoading}
                   className="ayetasks-social-btn apple-btn"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">

@@ -101,6 +101,7 @@ export default function App() {
   });
 
   const API_BASE_URL = import.meta.env.VITE_BFF_URL || 'https://back-ayvddw.ayeapps.com';
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || 'https://api-auth.ayeapps.com';
 
   const [token, setToken] = useState(localStorage.getItem('aye_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('aye_email') || '');
@@ -642,17 +643,27 @@ export default function App() {
   if (!token) {
     return (
       <AuthScreen
-        apiBaseUrl={API_BASE_URL}
+        authApiUrl={AUTH_API_URL}
         appName="AYE VIDEO DOWNLOADER"
         currentLang={lang}
         onLangChange={setLang}
         onLoginSuccess={(data, emailUsed) => {
-          setToken(data.access_token);
-          setUserEmail(emailUsed);
-          setUserName(data.name || emailUsed.split('@')[0]);
-          localStorage.setItem('aye_token', data.access_token);
-          localStorage.setItem('aye_email', emailUsed);
-          localStorage.setItem('aye_name', data.name || emailUsed.split('@')[0]);
+          const accessToken = data.access_token;
+          const userObj = data.user || {};
+          const userEmailVal = userObj.email || emailUsed;
+          const userNameVal = userObj.name || userEmailVal.split('@')[0];
+
+          setToken(accessToken);
+          setUserEmail(userEmailVal);
+          setUserName(userNameVal);
+
+          localStorage.setItem('aye_token', accessToken);
+          if (data.refresh_token) {
+            localStorage.setItem('aye_refresh_token', data.refresh_token);
+          }
+          localStorage.setItem('aye_email', userEmailVal);
+          localStorage.setItem('aye_name', userNameVal);
+          localStorage.setItem('aye_user', JSON.stringify(userObj));
         }}
       />
     );
