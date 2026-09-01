@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     mongodb_cert_b64: str = ""
     mongodb_cert_path: str = ""
     
-    jwt_secret_key: str = "secret"
+    jwt_secret_key: str = "super_secure_secret_key_minimum_32_characters_for_ayeapps_atelier"
     access_token_expire_minutes: int = 60
     refresh_token_expire_minutes: int = 10080
     

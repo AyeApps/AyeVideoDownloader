@@ -132,6 +132,66 @@ export default function App() {
     localStorage.setItem('aye_history', JSON.stringify(history));
   }, [history]);
 
+  // Validate token with central auth service on initial mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('aye_token');
+    if (!storedToken) return;
+
+    let isMounted = true;
+    fetch(`${AUTH_API_URL}/api/v1/auth/me`, {
+      headers: { 'Authorization': `Bearer ${storedToken}` }
+    })
+      .then(async (res) => {
+        if (!isMounted) return;
+        if (res.status === 401) {
+          // Attempt token refresh if refresh_token exists
+          const refreshToken = localStorage.getItem('aye_refresh_token');
+          if (refreshToken) {
+            try {
+              const refreshRes = await fetch(`${AUTH_API_URL}/api/v1/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: refreshToken })
+              });
+              if (refreshRes.ok) {
+                const refreshed = await refreshRes.json();
+                if (isMounted) {
+                  setToken(refreshed.access_token);
+                  localStorage.setItem('aye_token', refreshed.access_token);
+                  if (refreshed.refresh_token) {
+                    localStorage.setItem('aye_refresh_token', refreshed.refresh_token);
+                  }
+                  if (refreshed.user) {
+                    setUserEmail(refreshed.user.email || '');
+                    setUserName(refreshed.user.name || '');
+                    localStorage.setItem('aye_email', refreshed.user.email || '');
+                    localStorage.setItem('aye_name', refreshed.user.name || '');
+                    localStorage.setItem('aye_user', JSON.stringify(refreshed.user));
+                  }
+                }
+                return;
+              }
+            } catch {}
+          }
+          if (isMounted) handleLogout();
+        } else if (res.ok) {
+          const userData = await res.json();
+          if (isMounted && userData) {
+            setUserEmail(userData.email || '');
+            setUserName(userData.name || '');
+            localStorage.setItem('aye_email', userData.email || '');
+            localStorage.setItem('aye_name', userData.name || '');
+            localStorage.setItem('aye_user', JSON.stringify(userData));
+          }
+        }
+      })
+      .catch(() => {
+        // Network offline -> allow cached session unless explicitly revoked
+      });
+
+    return () => { isMounted = false; };
+  }, []);
+
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   const toggleLang = () => {
     const next = lang === 'es' ? 'en' : 'es';
@@ -142,14 +202,17 @@ export default function App() {
   const handleLogout = () => {
     setToken('');
     setUserEmail('');
-    setUserTier('free');
-    setUserAppsAccess({});
-    localStorage.removeItem('aye_token');
-    localStorage.removeItem('aye_refresh_token');
-    localStorage.removeItem('aye_email');
-    localStorage.removeItem('aye_tier');
-    localStorage.removeItem('aye_apps_access');
+    setUserName('');
     setIsProfileOpen(false);
+    try {
+      localStorage.removeItem('aye_token');
+      localStorage.removeItem('aye_refresh_token');
+      localStorage.removeItem('aye_email');
+      localStorage.removeItem('aye_name');
+      localStorage.removeItem('aye_user');
+      localStorage.removeItem('aye_tier');
+      localStorage.removeItem('aye_apps_access');
+    } catch {}
   };
 
   const handleDeleteAccount = async () => {
@@ -166,6 +229,11 @@ export default function App() {
           'Authorization': `Bearer ${token}`
         }
       });
+      if (res.status === 401) {
+        alert(lang === 'es' ? 'La sesión ha expirado o el token fue revocado. Cerrando sesión...' : 'Session expired or token revoked. Logging out...');
+        handleLogout();
+        return;
+      }
       if (!res.ok && res.status !== 204 && res.status !== 404) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || (lang === 'es' ? 'Error al eliminar la cuenta' : 'Error deleting account'));
@@ -174,6 +242,9 @@ export default function App() {
       handleLogout();
     } catch (err) {
       alert(err.message || (lang === 'es' ? 'Error al procesar la eliminación' : 'Error processing deletion'));
+      if (err.message && (err.message.toLowerCase().includes('revocad') || err.message.toLowerCase().includes('token') || err.message.toLowerCase().includes('unauthorized') || err.message.toLowerCase().includes('sesión') || err.message.toLowerCase().includes('session'))) {
+        handleLogout();
+      }
     }
   };
 
