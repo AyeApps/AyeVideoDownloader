@@ -142,11 +142,39 @@ export default function App() {
   const handleLogout = () => {
     setToken('');
     setUserEmail('');
-    setUserName('');
+    setUserTier('free');
+    setUserAppsAccess({});
     localStorage.removeItem('aye_token');
+    localStorage.removeItem('aye_refresh_token');
     localStorage.removeItem('aye_email');
-    localStorage.removeItem('aye_name');
+    localStorage.removeItem('aye_tier');
+    localStorage.removeItem('aye_apps_access');
     setIsProfileOpen(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmMessage = lang === 'es'
+      ? '¿Estás completamente seguro de que deseas eliminar permanentemente tu cuenta de AyeApps y todos sus datos asociados? Esta acción NO se puede deshacer.'
+      : 'Are you completely sure you want to permanently delete your AyeApps account and all associated data? This action CANNOT be undone.';
+    
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const res = await fetch(`${AUTH_API_URL}/api/v1/auth/me`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok && res.status !== 204 && res.status !== 404) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || (lang === 'es' ? 'Error al eliminar la cuenta' : 'Error deleting account'));
+      }
+      alert(lang === 'es' ? 'Tu cuenta ha sido eliminada permanentemente.' : 'Your account has been permanently deleted.');
+      handleLogout();
+    } catch (err) {
+      alert(err.message || (lang === 'es' ? 'Error al procesar la eliminación' : 'Error processing deletion'));
+    }
   };
 
   const getStatusLabel = (d, l) => {
@@ -854,6 +882,28 @@ export default function App() {
                 <div>• {lang === 'es' ? 'SESIÓN DE USUARIO:' : 'USER SESSION:'} <span>{userEmail}</span></div>
               </div>
             </div>
+
+            <div className="panel-card" style={{ borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+              <div className="panel-card-title" style={{ color: 'var(--accent-error)' }}>
+                {lang === 'es' ? 'GESTIÓN DE CUENTA // ZONA DE PELIGRO' : 'ACCOUNT MANAGEMENT // DANGER ZONE'}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                  {lang === 'es' 
+                    ? 'Al eliminar tu cuenta se revocarán todos tus accesos y se borrarán permanentemente tus datos del ecosistema AyeApps.'
+                    : 'Deleting your account will permanently revoke your access and wipe your data from the AyeApps ecosystem.'}
+                </p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    className="geometric-btn" 
+                    style={{ background: 'transparent', borderColor: 'var(--accent-error)', color: 'var(--accent-error)', fontSize: '11px', padding: '8px 14px' }}
+                    onClick={handleDeleteAccount}
+                  >
+                    {lang === 'es' ? 'ELIMINAR CUENTA DEFINITIVAMENTE' : 'PERMANENTLY DELETE ACCOUNT'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1278,10 +1328,17 @@ export default function App() {
           </button>
           <button 
             className="sidebar-nav-item" 
-            style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--accent-error)' }} 
+            style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)' }} 
             onClick={handleLogout}
           >
             <span>{lang === 'es' ? 'Cerrar Sesión' : 'Log Out'}</span>
+          </button>
+          <button 
+            className="sidebar-nav-item" 
+            style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--accent-error)' }} 
+            onClick={() => { setIsProfileOpen(false); handleDeleteAccount(); }}
+          >
+            <span>{lang === 'es' ? 'Eliminar Cuenta' : 'Delete Account'}</span>
           </button>
         </div>
       </div>
