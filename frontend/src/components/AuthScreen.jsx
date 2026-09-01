@@ -22,7 +22,7 @@ const AyeLogo = ({ width = 56, color = '#FE9D01' }) => {
 };
 
 const GOOGLE_CLIENT_ID = "627799707976-gt9uudejrtd5d4b7pubkso0ev35j2rhr.apps.googleusercontent.com";
-const APPLE_CLIENT_ID = "com.ayeapps.auth.service";
+const APPLE_CLIENT_ID = "com.ayeapps.auth";
 
 export default function AuthScreen({
   authApiUrl = 'https://api-auth.ayeapps.com',
