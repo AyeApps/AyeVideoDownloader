@@ -157,6 +157,7 @@ export default function AuthScreen({
       setAuthError('');
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
+        use_fedcm_for_prompt: true,
         callback: async (response) => {
           try {
             if (!response.credential) throw new Error('No se recibió credencial de Google');
