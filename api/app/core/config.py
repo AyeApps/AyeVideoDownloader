@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     
     mongodb_url: str = "mongodb://localhost:27017"
     database_name: str = "aye_video_dev"
+    mongodb_cert_b64: str = ""
+    mongodb_cert_path: str = ""
     
     jwt_secret_key: str = "secret"
     access_token_expire_minutes: int = 60
