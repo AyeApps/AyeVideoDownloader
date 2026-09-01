@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "AyeVideoDownloader",
+    "slug": "aye-video-downloader",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "ayetasks",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ayeapps.ayetasks",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ayeapps.ayetasks",
+      "versionCode": 1,
+      "permissions": [],
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-apple-authentication",
+      "expo-web-browser"
+    ]
+  }
+}
