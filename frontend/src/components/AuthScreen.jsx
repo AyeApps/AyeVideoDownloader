@@ -150,56 +150,7 @@ export default function AuthScreen({
     }
   };
 
-  const googleInitializedRef = React.useRef(false);
-
-  // Initialize Google SDK once on mount
-  useEffect(() => {
-    if (googleInitializedRef.current) return;
-
-    const initGoogle = () => {
-      if (window.google?.accounts?.id && !googleInitializedRef.current) {
-        googleInitializedRef.current = true;
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          use_fedcm_for_prompt: true,
-          callback: async (response) => {
-            try {
-              if (!response.credential) throw new Error('No se recibió credencial de Google');
-              setIsLoading(true);
-              const res = await fetch(`${authApiUrl}/api/v1/auth/oauth/google`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id_token: response.credential, app_client: 'video_downloader' }),
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.detail || 'Error autenticando con Google');
-              if (onLoginSuccess) {
-                onLoginSuccess(data, data.user?.email || 'google_user@ayeapps.com');
-              }
-            } catch (err) {
-              setAuthError(err.message.toUpperCase());
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        });
-      }
-    };
-
-    if (window.google?.accounts?.id) {
-      initGoogle();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          initGoogle();
-          clearInterval(interval);
-        }
-      }, 300);
-      return () => clearInterval(interval);
-    }
-  }, [authApiUrl, onLoginSuccess]);
-
-  // Google OAuth Login Trigger via Popup Client
+  // Google OAuth Login Trigger via Popup Window (No ambient One Tap notification)
   const handleGoogleLogin = () => {
     if (window.google?.accounts?.oauth2) {
       setAuthError('');
@@ -241,14 +192,6 @@ export default function AuthScreen({
         setIsLoading(false);
         setAuthError(err.message.toUpperCase());
       }
-    } else if (window.google?.accounts?.id) {
-      setAuthError('');
-      setIsLoading(true);
-      window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          setIsLoading(false);
-        }
-      });
     } else {
       setAuthError(lang === 'es' ? 'SDK DE GOOGLE CARGANDO... REINTENTA EN 2 SEGUNDOS' : 'GOOGLE SDK LOADING... RETRY IN 2 SECONDS');
     }
