@@ -199,9 +199,49 @@ export default function AuthScreen({
     }
   }, [authApiUrl, onLoginSuccess]);
 
-  // Google OAuth Login Trigger
+  // Google OAuth Login Trigger via Popup Client
   const handleGoogleLogin = () => {
-    if (window.google?.accounts?.id) {
+    if (window.google?.accounts?.oauth2) {
+      setAuthError('');
+      setIsLoading(true);
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: 'openid email profile',
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+              setIsLoading(false);
+              if (tokenResponse.error !== 'popup_closed_by_user') {
+                setAuthError((tokenResponse.error_description || tokenResponse.error).toUpperCase());
+              }
+              return;
+            }
+            if (tokenResponse.access_token) {
+              try {
+                const res = await fetch(`${authApiUrl}/api/v1/auth/oauth/google`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ access_token: tokenResponse.access_token, app_client: 'video_downloader' }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Error autenticando con Google');
+                if (onLoginSuccess) {
+                  onLoginSuccess(data, data.user?.email || 'google_user@ayeapps.com');
+                }
+              } catch (err) {
+                setAuthError(err.message.toUpperCase());
+              } finally {
+                setIsLoading(false);
+              }
+            }
+          },
+        });
+        client.requestAccessToken({ prompt: 'select_account' });
+      } catch (err) {
+        setIsLoading(false);
+        setAuthError(err.message.toUpperCase());
+      }
+    } else if (window.google?.accounts?.id) {
       setAuthError('');
       setIsLoading(true);
       window.google.accounts.id.prompt((notification) => {
