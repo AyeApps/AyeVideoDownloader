@@ -433,9 +433,9 @@ export default function App() {
   // Handle Paste from Clipboard
   const handlePasteClipboard = async () => {
     try {
-      const text = await navigator.clipboard.readText();
-      if (text && (text.startsWith('http://') || text.startsWith('https://') || text.includes('.'))) {
-        setLinkInput(text.trim());
+      const text = (await navigator.clipboard.readText() || '').trim();
+      if (text && (text.startsWith('http://') || text.startsWith('https://') || text.includes('youtube.com') || text.includes('youtu.be') || text.includes('tiktok.com') || text.includes('instagram.com') || text.includes('facebook.com') || text.includes('x.com') || text.includes('twitter.com') || text.includes('vimeo.com') || text.includes('reddit.com') || text.includes('twitch.tv'))) {
+        setLinkInput(text);
       }
     } catch {
       // Clipboard permissions denied
@@ -447,6 +447,17 @@ export default function App() {
     if (!rawUrl) return;
     if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
       rawUrl = 'https://' + rawUrl;
+    }
+
+    try {
+      const parsed = new URL(rawUrl);
+      if (!parsed.hostname || !parsed.hostname.includes('.') || parsed.hostname.length < 4 || parsed.hostname.includes('_')) {
+        alert(lang === 'es' ? 'Por favor ingresa un enlace de video válido (ej. YouTube, TikTok, Instagram).' : 'Please enter a valid video link (e.g. YouTube, TikTok, Instagram).');
+        return;
+      }
+    } catch {
+      alert(lang === 'es' ? 'El formato del enlace no es válido.' : 'The video URL format is invalid.');
+      return;
     }
     
     const id = Date.now();
