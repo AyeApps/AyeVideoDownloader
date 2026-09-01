@@ -150,10 +150,15 @@ export default function AuthScreen({
     }
   };
 
-  // Initialize Google SDK once on mount / when SDK is available
+  const googleInitializedRef = React.useRef(false);
+
+  // Initialize Google SDK once on mount
   useEffect(() => {
+    if (googleInitializedRef.current) return;
+
     const initGoogle = () => {
-      if (window.google?.accounts?.id) {
+      if (window.google?.accounts?.id && !googleInitializedRef.current) {
+        googleInitializedRef.current = true;
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           use_fedcm_for_prompt: true,
@@ -189,7 +194,7 @@ export default function AuthScreen({
           initGoogle();
           clearInterval(interval);
         }
-      }, 500);
+      }, 300);
       return () => clearInterval(interval);
     }
   }, [authApiUrl, onLoginSuccess]);
@@ -215,10 +220,11 @@ export default function AuthScreen({
       try {
         setIsLoading(true);
         setAuthError('');
+        const origin = window.location.origin;
         window.AppleID.auth.init({
           clientId: APPLE_CLIENT_ID,
           scope: 'name email',
-          redirectURI: `${authApiUrl}/api/v1/auth/oauth/apple/callback`,
+          redirectURI: origin,
           usePopup: true,
         });
         const response = await window.AppleID.auth.signIn();
