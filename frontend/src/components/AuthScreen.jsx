@@ -150,34 +150,55 @@ export default function AuthScreen({
     }
   };
 
-  // Google OAuth Login
+  // Initialize Google SDK once on mount / when SDK is available
+  useEffect(() => {
+    const initGoogle = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          use_fedcm_for_prompt: true,
+          callback: async (response) => {
+            try {
+              if (!response.credential) throw new Error('No se recibió credencial de Google');
+              setIsLoading(true);
+              const res = await fetch(`${authApiUrl}/api/v1/auth/oauth/google`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_token: response.credential, app_client: 'video_downloader' }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.detail || 'Error autenticando con Google');
+              if (onLoginSuccess) {
+                onLoginSuccess(data, data.user?.email || 'google_user@ayeapps.com');
+              }
+            } catch (err) {
+              setAuthError(err.message.toUpperCase());
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        });
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      initGoogle();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          initGoogle();
+          clearInterval(interval);
+        }
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [authApiUrl, onLoginSuccess]);
+
+  // Google OAuth Login Trigger
   const handleGoogleLogin = () => {
     if (window.google?.accounts?.id) {
-      setIsLoading(true);
       setAuthError('');
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        use_fedcm_for_prompt: true,
-        callback: async (response) => {
-          try {
-            if (!response.credential) throw new Error('No se recibió credencial de Google');
-            const res = await fetch(`${authApiUrl}/api/v1/auth/oauth/google`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id_token: response.credential, app_client: 'video_downloader' }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Error autenticando con Google');
-            if (onLoginSuccess) {
-              onLoginSuccess(data, data.user?.email || 'google_user@ayeapps.com');
-            }
-          } catch (err) {
-            setAuthError(err.message.toUpperCase());
-          } finally {
-            setIsLoading(false);
-          }
-        },
-      });
+      setIsLoading(true);
       window.google.accounts.id.prompt((notification) => {
         if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
           setIsLoading(false);
