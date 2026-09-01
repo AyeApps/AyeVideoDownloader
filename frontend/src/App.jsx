@@ -215,6 +215,54 @@ export default function App() {
     } catch {}
   };
 
+  // Reusable authenticated fetch wrapper with automatic token refresh
+  const authFetch = async (url, options = {}) => {
+    let currentToken = token || localStorage.getItem('aye_token') || '';
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+      'Authorization': `Bearer ${currentToken}`
+    };
+
+    let res = await fetch(url, { ...options, headers });
+
+    if (res.status === 401) {
+      const refreshToken = localStorage.getItem('aye_refresh_token');
+      if (refreshToken) {
+        try {
+          const refreshRes = await fetch(`${AUTH_API_URL}/api/v1/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken })
+          });
+          if (refreshRes.ok) {
+            const refreshed = await refreshRes.json();
+            setToken(refreshed.access_token);
+            localStorage.setItem('aye_token', refreshed.access_token);
+            if (refreshed.refresh_token) {
+              localStorage.setItem('aye_refresh_token', refreshed.refresh_token);
+            }
+            if (refreshed.user) {
+              setUserEmail(refreshed.user.email || '');
+              setUserName(refreshed.user.name || '');
+              localStorage.setItem('aye_email', refreshed.user.email || '');
+              localStorage.setItem('aye_name', refreshed.user.name || '');
+              localStorage.setItem('aye_user', JSON.stringify(refreshed.user));
+            }
+            const retryHeaders = {
+              'Content-Type': 'application/json',
+              ...(options.headers || {}),
+              'Authorization': `Bearer ${refreshed.access_token}`
+            };
+            res = await fetch(url, { ...options, headers: retryHeaders });
+          }
+        } catch {}
+      }
+    }
+
+    return res;
+  };
+
   const handleDeleteAccount = async () => {
     const confirmMessage = lang === 'es'
       ? '¿Estás completamente seguro de que deseas eliminar permanentemente tu cuenta de AyeApps y todos sus datos asociados? Esta acción NO se puede deshacer.'
@@ -429,16 +477,13 @@ export default function App() {
     }, 180);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/formats`, {
+      const res = await authFetch(`${API_BASE_URL}/api/formats`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({ url: rawUrl })
       });
       if (res.status === 401) { 
         clearInterval(progressTimer);
+        setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR", name: lang === 'es' ? "SESIÓN EXPIRADA. INICIA SESIÓN DE NUEVO" : "SESSION EXPIRED. PLEASE LOG IN AGAIN" } : d));
         handleLogout(); 
         return; 
       }
@@ -558,7 +603,8 @@ export default function App() {
     setDownloadingIds(prev => new Set([...prev, jobId]));
     try {
       const fileName = fallbackName || `video_${jobId}.${fileType === 'audio' ? 'mp3' : 'mp4'}`;
-      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(token)}`;
+      const currentToken = token || localStorage.getItem('aye_token') || '';
+      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(currentToken)}`;
       
       const a = document.createElement('a');
       a.href = downloadUrl;
@@ -584,9 +630,7 @@ export default function App() {
 
   const pollDownloadStatus = async (id, jobId) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/download/${jobId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await authFetch(`${API_BASE_URL}/api/download/${jobId}`);
       if (res.status === 401) { handleLogout(); return; }
       const data = await res.json();
       
@@ -652,12 +696,8 @@ export default function App() {
       if (d.status === "READY") {
         setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, status: "STARTING...", stage: "video", video_progress: 0, audio_progress: 0 } : item));
         
-        fetch(`${API_BASE_URL}/api/download`, {
+        authFetch(`${API_BASE_URL}/api/download`, {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
           body: JSON.stringify({
             url: d.url,
             format: d.type === 'audio' ? 'audioMP3' : 'videoMP4',
@@ -675,7 +715,8 @@ export default function App() {
             
             // Connect to progress Stream with token query
             try {
-              const streamUrl = `${API_BASE_URL}/api/download/${data.job_id}/stream?token=${encodeURIComponent(token)}`;
+              const currentToken = token || localStorage.getItem('aye_token') || '';
+              const streamUrl = `${API_BASE_URL}/api/download/${data.job_id}/stream?token=${encodeURIComponent(currentToken)}`;
               const eventSource = new EventSource(streamUrl);
               eventSource.addEventListener('progress', (e) => {
                 try {
