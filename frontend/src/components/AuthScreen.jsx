@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './AuthScreen.css';
+import InteractiveDots from './InteractiveDots';
 
 // Exact AyeLogo from AyeTasks
 const AyeLogo = ({ width = 56, color = '#FE9D01' }) => {
@@ -24,8 +25,16 @@ const AyeLogo = ({ width = 56, color = '#FE9D01' }) => {
 const GOOGLE_CLIENT_ID = "627799707976-gt9uudejrtd5d4b7pubkso0ev35j2rhr.apps.googleusercontent.com";
 const APPLE_CLIENT_ID = "com.ayeapps.auth";
 
+const defaultAuthUrl =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+   window.location.hostname === '127.0.0.1' ||
+   window.location.hostname === '[::1]')
+    ? 'http://localhost:8000'
+    : 'https://api-auth.ayeapps.com';
+
 export default function AuthScreen({
-  authApiUrl = 'https://api-auth.ayeapps.com',
+  authApiUrl = defaultAuthUrl,
   currentLang = 'es',
   onLangChange,
   onLoginSuccess
@@ -33,7 +42,7 @@ export default function AuthScreen({
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
   const [lang, setLang] = useState(() => currentLang || localStorage.getItem('aye_lang') || localStorage.getItem('preferred_lang') || 'es');
   const [isDark, setIsDark] = useState(true);
-  const [serverStatus, setServerStatus] = useState('online');
+  const [serverStatus, setServerStatus] = useState('checking');
 
   useEffect(() => {
     if (currentLang && currentLang !== lang) {
@@ -52,12 +61,13 @@ export default function AuthScreen({
   useEffect(() => {
     let mounted = true;
     const check = async () => {
+      setServerStatus('checking');
       try {
         const res = await fetch(`${authApiUrl}/health`);
         if (res.ok && mounted) setServerStatus('online');
         else if (mounted) setServerStatus('offline');
       } catch {
-        if (mounted) setServerStatus('online');
+        if (mounted) setServerStatus('offline');
       }
     };
     check();
@@ -243,9 +253,9 @@ export default function AuthScreen({
   const t = {
     es: {
       title: 'AYE-VIDEO',
-      serverOnline: 'CUENTA AYE: ACTIVA',
-      serverOffline: 'CUENTA AYE: DESCONECTADA',
-      serverChecking: 'VERIFICANDO CUENTA...',
+      serverOnline: 'SERVIDOR: EN LÍNEA',
+      serverOffline: 'SERVIDOR: DESCONECTADO',
+      serverChecking: 'VERIFICANDO SERVIDOR...',
       login: 'INICIAR SESIÓN',
       register: 'REGISTRO',
       name: 'NOMBRE',
@@ -263,9 +273,9 @@ export default function AuthScreen({
     },
     en: {
       title: 'AYE-VIDEO',
-      serverOnline: 'AYE ACCOUNT: ACTIVE',
-      serverOffline: 'AYE ACCOUNT: OFFLINE',
-      serverChecking: 'CHECKING ACCOUNT...',
+      serverOnline: 'SERVER: ONLINE',
+      serverOffline: 'SERVER: OFFLINE',
+      serverChecking: 'CHECKING SERVER...',
       login: 'SIGN IN',
       register: 'REGISTER',
       name: 'NAME',
@@ -285,8 +295,8 @@ export default function AuthScreen({
 
   return (
     <div className={`ayetasks-auth-root ${isDark ? 'dark' : 'light'}`}>
-      {/* Moving Animated Dot Matrix Background */}
-      <div className="ayetasks-dot-grid-animated" />
+      {/* Reactive Interactive Dot Matrix Background (From AyeAppsWeb) */}
+      <InteractiveDots />
 
       {/* Top Right Controls (Exact clone of AyeTasks) */}
       <div className="ayetasks-top-controls">
@@ -330,7 +340,7 @@ export default function AuthScreen({
       <div className="ayetasks-centered-view">
         <div className="ayetasks-tech-frame">
           {/* Tech Badge / Live Server Status (Exact pinned position) */}
-          <div className="ayetasks-tech-badge">
+          <div className={`ayetasks-tech-badge ${serverStatus}`}>
             <div className={`ayetasks-status-dot ${serverStatus}`} />
             <span className="ayetasks-tech-badge-text font-mono">
               {serverStatus === 'online'

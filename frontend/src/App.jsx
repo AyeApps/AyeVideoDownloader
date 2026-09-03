@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 import AuthScreen from './components/AuthScreen';
 import './components/AuthScreen.css';
+import InteractiveDots from './components/InteractiveDots';
 
 // SVG Icons
 const Icons = {
@@ -88,20 +89,41 @@ export default function App() {
   
   const [globalSettings, setGlobalSettings] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('aye_settings') || JSON.stringify({
-        format: 'video',
-        quality: 'best',
-        codec: 'any',
-        hdr: 'any',
-        audioBitrate: '320'
-      }));
+      const parsed = JSON.parse(localStorage.getItem('aye_settings') || '{}');
+      return {
+        format: parsed.format || 'video',
+        quality: parsed.quality || 'best',
+        codec: parsed.codec || 'any',
+        hdr: parsed.hdr || 'any',
+        fps: parsed.fps || 'any',
+        audioBitrate: parsed.audioBitrate || '320'
+      };
     } catch {
-      return { format: 'video', quality: 'best', codec: 'any', hdr: 'any', audioBitrate: '320' };
+      return { format: 'video', quality: 'best', codec: 'any', hdr: 'any', fps: 'any', audioBitrate: '320' };
     }
   });
 
-  const API_BASE_URL = import.meta.env.VITE_BFF_URL || 'https://back-ayvddw.ayeapps.com';
-  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || 'https://api-auth.ayeapps.com';
+  const [isProMode, setIsProMode] = useState(() => {
+    return localStorage.getItem('aye_pro_mode') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('aye_pro_mode', isProMode ? 'true' : 'false');
+  }, [isProMode]);
+
+  const isWebLocal =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+     window.location.hostname === '127.0.0.1' ||
+     window.location.hostname === '[::1]');
+
+  const API_BASE_URL =
+    import.meta.env.VITE_BFF_URL ||
+    (isWebLocal ? 'http://localhost:8002' : 'https://back-ayvddw.ayeapps.com');
+
+  const AUTH_API_URL =
+    import.meta.env.VITE_AUTH_API_URL ||
+    (isWebLocal ? 'http://localhost:8000' : 'https://api-auth.ayeapps.com');
 
   const [token, setToken] = useState(localStorage.getItem('aye_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('aye_email') || '');
@@ -109,6 +131,30 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('queue');
   const [downloadingIds, setDownloadingIds] = useState(new Set());
   const [toastMessage, setToastMessage] = useState(null);
+  const [serverStatus, setServerStatus] = useState('checking');
+
+  useEffect(() => {
+    let mounted = true;
+    const checkServer = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/health`);
+        if (res.ok && mounted) {
+          setServerStatus('online');
+        } else if (mounted) {
+          setServerStatus('offline');
+        }
+      } catch {
+        if (mounted) setServerStatus('offline');
+      }
+    };
+
+    checkServer();
+    const interval = setInterval(checkServer, 12000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [API_BASE_URL]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -329,6 +375,17 @@ export default function App() {
     return `${l === 'es' ? 'DESCARGANDO VIDEO' : 'DOWNLOADING VIDEO'} ${vPct}%`;
   };
 
+  const isFormatHDR = (f) => {
+    if (!f) return false;
+    if (f.is_hdr === true) return true;
+    if (f.dynamic_range && f.dynamic_range.toUpperCase() !== 'SDR') return true;
+    const note = (f.format_note || '').toUpperCase();
+    if (note.includes('HDR')) return true;
+    const label = (f.display_label || '').toUpperCase();
+    if (label.includes('HDR')) return true;
+    return false;
+  };
+
   const getOptionLabel = (opt, l) => {
     if (!opt) return '';
     if (opt.id === 'fallback') return l === 'es' ? 'DETECTANDO...' : 'DETECTING...';
@@ -340,18 +397,18 @@ export default function App() {
     
     let codecDesc = '';
     const vc = (f.vcodec || '').toLowerCase();
-    if (vc.startsWith('avc') || vc === 'h264') codecDesc = l === 'es' ? 'H.264 - NATIVO' : 'H.264 - NATIVE';
+    if (vc.startsWith('avc') || vc === 'h264') codecDesc = l === 'es' ? 'H.264 (NATIVO)' : 'H.264 (NATIVE)';
     else if (vc.startsWith('hev') || vc.startsWith('hvc') || vc === 'h265') codecDesc = 'H.265';
     else if (vc.startsWith('vp9') || vc.startsWith('vp09') || vc === 'vp9') codecDesc = 'VP9';
     else if (vc.startsWith('av01') || vc === 'av1') codecDesc = 'AV1';
     else codecDesc = (f.vcodec || '').toUpperCase();
 
-    const isHDR = f.dynamic_range && f.dynamic_range.toUpperCase() !== 'SDR';
-    const hdrDesc = isHDR ? ' · HDR' : '';
-    const mb = f.filesize ? Math.round(f.filesize / 1024 / 1024) + 'MB' : '';
+    const isHDR = isFormatHDR(f);
+    const hdrPrefix = isHDR ? '✦ [HDR] ' : '';
+    const mb = f.filesize ? Math.round(f.filesize / 1024 / 1024) + 'MB' : (f.size_label ? f.size_label.trim() : '');
     const mbText = mb ? ` · ${mb}` : '';
 
-    return `${f.height}P${f.fps > 30 ? f.fps : ''} · ${codecDesc}${hdrDesc}${mbText}`;
+    return `${hdrPrefix}${f.height}P${f.fps > 30 ? Math.round(f.fps) : ''} · ${codecDesc}${mbText}`;
   };
 
   const getMediaTitle = (d, l) => {
@@ -365,7 +422,7 @@ export default function App() {
   };
 
   // Helper para selección inteligente de calidad
-  const getPreferredFormat = (options, settings) => {
+  const getPreferredFormat = (options, settings, isPro = false) => {
     if (!options || options.length === 0) return 'fallback';
     if (settings.format === 'audio') {
       return 'audio_only';
@@ -373,11 +430,30 @@ export default function App() {
     const videoOptions = options.filter(o => o.id !== 'audio_only');
     if (videoOptions.length === 0) return options[0].id;
 
-    if (settings.quality === 'best' && settings.codec === 'any' && settings.hdr === 'any') {
-      return videoOptions[0].id;
+    let filtered = videoOptions;
+
+    // Si NO está en modo PRO: forzar H.264 exclusivamente
+    if (!isPro) {
+      const h264Options = filtered.filter(o => {
+        const vc = (o.raw?.vcodec || '').toLowerCase();
+        return vc.startsWith('avc') || vc === 'h264';
+      });
+      if (h264Options.length > 0) filtered = h264Options;
+
+      if (settings.quality !== 'best') {
+        const matchQuality = filtered.filter(o => {
+          const height = o.raw?.height;
+          if (settings.quality === '4k') return height >= 2160;
+          if (settings.quality === '1080p') return height === 1080;
+          if (settings.quality === '720p') return height === 720;
+          return true;
+        });
+        if (matchQuality.length > 0) filtered = matchQuality;
+      }
+      return filtered[0]?.id || videoOptions[0].id;
     }
 
-    let filtered = videoOptions;
+    // MODO PRO: aplicar filtros avanzados (resolución, codec, hdr, fps)
     if (settings.quality !== 'best') {
       const matchQuality = filtered.filter(o => {
         const height = o.raw?.height;
@@ -403,10 +479,18 @@ export default function App() {
 
     if (settings.hdr !== 'any') {
       const matchHDR = filtered.filter(o => {
-        const isHDR = o.raw?.dynamic_range && o.raw?.dynamic_range.toUpperCase() !== 'SDR';
+        const isHDR = isFormatHDR(o.raw);
         return settings.hdr === 'hdr' ? isHDR : !isHDR;
       });
       if (matchHDR.length > 0) filtered = matchHDR;
+    }
+
+    if (settings.fps && settings.fps !== 'any') {
+      const matchFPS = filtered.filter(o => {
+        const fps = o.raw?.fps || 30;
+        return settings.fps === '60' ? fps >= 50 : fps <= 35;
+      });
+      if (matchFPS.length > 0) filtered = matchFPS;
     }
 
     return filtered[0]?.id || videoOptions[0].id;
@@ -415,10 +499,10 @@ export default function App() {
   useEffect(() => {
     setDownloads(prev => prev.map(d => {
       if (d.status !== "READY" && d.status !== "WAITING") return d;
-      const newQuality = getPreferredFormat(d.options || [], globalSettings);
+      const newQuality = getPreferredFormat(d.options || [], globalSettings, isProMode);
       return { ...d, type: globalSettings.format, quality: newQuality };
     }));
-  }, [globalSettings]);
+  }, [globalSettings, isProMode]);
 
   useEffect(() => {
     const handleGlobalClick = (e) => {
@@ -516,18 +600,18 @@ export default function App() {
         else if (f.vcodec.startsWith('av01') || f.vcodec === 'av1') codecDesc = 'AV1';
         else codecDesc = f.vcodec.toUpperCase();
         
-        const isHDR = f.dynamic_range && f.dynamic_range.toUpperCase() !== 'SDR';
-        const hdrDesc = isHDR ? ' · HDR' : '';
-        const mb = f.filesize ? Math.round(f.filesize / 1024 / 1024) + 'MB' : '';
+        const isHDR = isFormatHDR(f);
+        const hdrDesc = isHDR ? ' ✦ [HDR]' : '';
+        const mb = f.filesize ? Math.round(f.filesize / 1024 / 1024) + 'MB' : (f.size_label ? f.size_label.trim() : '');
         const mbText = mb ? ` · ${mb}` : '';
 
         return {
           id: f.id,
-          label: `${f.height}P${f.fps > 30 ? f.fps : ''} · ${codecDesc}${hdrDesc}${mbText}`,
+          label: `${isHDR ? '✦ [HDR] ' : ''}${f.height}P${f.fps > 30 ? Math.round(f.fps) : ''} · ${codecDesc}${mbText}`,
           raw: f
         };
       });
-      const preferred = getPreferredFormat(formattedOptions, globalSettings);
+      const preferred = getPreferredFormat(formattedOptions, globalSettings, isProMode);
 
       // Instant optimistic jump to 100% completed
       setDownloads(prev => prev.map(d => 
@@ -601,7 +685,7 @@ export default function App() {
     else if (vc.startsWith('vp09') || vc.startsWith('vp9') || vc === 'vp9') codec = 'VP9';
     else if (vc.startsWith('av01') || vc === 'av1') codec = 'AV1';
 
-    const isHDR = raw.dynamic_range && raw.dynamic_range.toUpperCase() !== 'SDR';
+    const isHDR = isFormatHDR(raw);
     const hdr = isHDR ? 'HDR' : '';
 
     const parts = [resFps, codec, hdr].filter(Boolean);
@@ -713,6 +797,9 @@ export default function App() {
             url: d.url,
             format: d.type === 'audio' ? 'audioMP3' : 'videoMP4',
             quality: 'best',
+            codec: isProMode ? globalSettings.codec : 'h264',
+            hdr: isProMode ? globalSettings.hdr : 'sdr',
+            fps: isProMode ? globalSettings.fps : 'any',
             selected_format_id: d.type === 'audio' ? null : d.quality
           })
         })
@@ -822,6 +909,9 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Reactive Interactive Dot Matrix Background (From AyeAppsWeb) */}
+      <InteractiveDots />
+
       {/* Top Bar Header */}
       <header className="top-bar">
         <div className="top-bar-left">
@@ -837,12 +927,14 @@ export default function App() {
               AYE<span className="brand-title-accent">-VIDEO</span>
             </div>
           </div>
-        </div>
 
-        <div className="top-bar-center">
-          <div className="telemetry-badge">
-            <div className="telemetry-dot" />
-            <span>{lang === 'es' ? 'MOTOR: EN LÍNEA' : 'ENGINE: ONLINE'}</span>
+          <div className={`telemetry-badge ${serverStatus}`} title={lang === 'es' ? 'Estado de la conexión al servidor' : 'Server connection status'}>
+            <div className={`telemetry-dot ${serverStatus}`} />
+            <span>
+              {lang === 'es' 
+                ? (serverStatus === 'online' ? 'SERVIDOR: EN LÍNEA' : serverStatus === 'checking' ? 'VERIFICANDO SERVIDOR...' : 'SERVIDOR: DESCONECTADO')
+                : (serverStatus === 'online' ? 'SERVER STATUS: ONLINE' : serverStatus === 'checking' ? 'CHECKING SERVER...' : 'SERVER STATUS: OFFLINE')}
+            </span>
           </div>
         </div>
 
@@ -965,19 +1057,62 @@ export default function App() {
                 </div>
 
                 <div className="settings-item">
-                  <label>{lang === 'es' ? 'CÓDEC PREFERIDO' : 'PREFERRED CODEC'}</label>
+                  <label>{lang === 'es' ? 'MODO DE DESCARGA (PRO MODE)' : 'DOWNLOAD MODE (PRO MODE)'}</label>
                   <select 
                     className="geometric-select" 
-                    value={globalSettings.codec}
-                    onChange={e => setGlobalSettings({ ...globalSettings, codec: e.target.value })}
+                    value={isProMode ? 'pro' : 'standard'}
+                    onChange={e => setIsProMode(e.target.value === 'pro')}
+                    style={isProMode ? { backgroundColor: 'var(--accent-amber)', color: '#000', fontWeight: 800 } : {}}
                   >
-                    <option value="any">{lang === 'es' ? 'CUALQUIER CÓDEC' : 'ANY CODEC'}</option>
-                    <option value="h264">{lang === 'es' ? 'H.264 (NATIVO - MÁXIMA COMPATIBILIDAD)' : 'H.264 (NATIVE - MAX COMPATIBILITY)'}</option>
-                    <option value="h265">{lang === 'es' ? 'H.265 (ALTA EFICIENCIA)' : 'H.265 (HIGH EFFICIENCY)'}</option>
-                    <option value="vp9">{lang === 'es' ? 'VP9 (YOUTUBE OPTIMIZADO)' : 'VP9 (YOUTUBE OPTIMIZED)'}</option>
-                    <option value="av1">{lang === 'es' ? 'AV1 (MÁXIMA CALIDAD VISUAL)' : 'AV1 (MAX VISUAL QUALITY)'}</option>
+                    <option value="standard">{lang === 'es' ? 'ESTÁNDAR (SOLO H.264 NATIVO)' : 'STANDARD (H.264 NATIVE ONLY)'}</option>
+                    <option value="pro">{lang === 'es' ? 'MODO PRO (CÓDECS PRO, HDR Y FPS)' : 'PRO MODE (PRO CODECS, HDR & FPS)'}</option>
                   </select>
                 </div>
+
+                {isProMode && (
+                  <>
+                    <div className="settings-item">
+                      <label>{lang === 'es' ? 'CÓDEC PREFERIDO (PRO)' : 'PREFERRED CODEC (PRO)'}</label>
+                      <select 
+                        className="geometric-select" 
+                        value={globalSettings.codec}
+                        onChange={e => setGlobalSettings({ ...globalSettings, codec: e.target.value })}
+                      >
+                        <option value="any">{lang === 'es' ? 'CUALQUIER CÓDEC' : 'ANY CODEC'}</option>
+                        <option value="h264">{lang === 'es' ? 'H.264 (NATIVO - MÁXIMA COMPATIBILIDAD)' : 'H.264 (NATIVE - MAX COMPATIBILITY)'}</option>
+                        <option value="h265">{lang === 'es' ? 'H.265 (ALTA EFICIENCIA)' : 'H.265 (HIGH EFFICIENCY)'}</option>
+                        <option value="vp9">{lang === 'es' ? 'VP9 (YOUTUBE OPTIMIZADO)' : 'VP9 (YOUTUBE OPTIMIZED)'}</option>
+                        <option value="av1">{lang === 'es' ? 'AV1 (MÁXIMA CALIDAD VISUAL)' : 'AV1 (MAX VISUAL QUALITY)'}</option>
+                      </select>
+                    </div>
+
+                    <div className="settings-item">
+                      <label>{lang === 'es' ? 'RANGO DINÁMICO HDR / SDR (PRO)' : 'DYNAMIC RANGE HDR / SDR (PRO)'}</label>
+                      <select 
+                        className="geometric-select" 
+                        value={globalSettings.hdr || 'any'}
+                        onChange={e => setGlobalSettings({ ...globalSettings, hdr: e.target.value })}
+                      >
+                        <option value="any">{lang === 'es' ? 'AUTO / CUALQUIERA' : 'AUTO / ANY'}</option>
+                        <option value="hdr">{lang === 'es' ? 'PREFERIR / FORZAR HDR' : 'PREFER / FORCE HDR'}</option>
+                        <option value="sdr">{lang === 'es' ? 'SOLO SDR (ESTÁNDAR)' : 'SDR ONLY (STANDARD)'}</option>
+                      </select>
+                    </div>
+
+                    <div className="settings-item">
+                      <label>{lang === 'es' ? 'CUADROS POR SEGUNDO FPS (PRO)' : 'FRAMES PER SECOND FPS (PRO)'}</label>
+                      <select 
+                        className="geometric-select" 
+                        value={globalSettings.fps || 'any'}
+                        onChange={e => setGlobalSettings({ ...globalSettings, fps: e.target.value })}
+                      >
+                        <option value="any">{lang === 'es' ? 'AUTO / CUALQUIERA' : 'AUTO / ANY'}</option>
+                        <option value="60">{lang === 'es' ? '60 FPS (ALTA FLUIDEZ)' : '60 FPS (HIGH FLUIDITY)'}</option>
+                        <option value="30">{lang === 'es' ? '30 FPS (ESTÁNDAR)' : '30 FPS (STANDARD)'}</option>
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 <div className="settings-item">
                   <label>{lang === 'es' ? 'CALIDAD DE AUDIO MP3' : 'MP3 AUDIO BITRATE'}</label>
@@ -999,7 +1134,7 @@ export default function App() {
                 {lang === 'es' ? 'ESTADO DEL SISTEMA // AYEAPPS' : 'SYSTEM STATUS // AYEAPPS'}
               </div>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>• {lang === 'es' ? 'SERVICIO BFF:' : 'BFF SERVICE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'EN LÍNEA' : 'ONLINE'} [back-ayvddw.ayeapps.com]</span></div>
+                <div>• {lang === 'es' ? 'SERVICIO API:' : 'API SERVICE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'EN LÍNEA' : 'ONLINE'} [{API_BASE_URL.replace(/^https?:\/\//, '')}]</span></div>
                 <div>• {lang === 'es' ? 'MOTOR PRINCIPAL:' : 'CORE ENGINE:'} <span style={{ color: 'var(--accent-amber)' }}>AYE-YT-DLP 2026.8</span></div>
                 <div>• {lang === 'es' ? 'BASE DE DATOS:' : 'DATABASE:'} <span style={{ color: 'var(--accent-success)' }}>{lang === 'es' ? 'MONGODB ACTIVO' : 'MONGODB ACTIVE'}</span></div>
                 <div>• {lang === 'es' ? 'SESIÓN DE USUARIO:' : 'USER SESSION:'} <span>{userEmail}</span></div>
@@ -1059,7 +1194,7 @@ export default function App() {
                     autoFocus
                   />
                   <button 
-                    className="paste-btn"
+                    className="geometric-btn paste-btn"
                     onClick={handlePasteClipboard}
                     title={lang === 'es' ? 'Pegar del portapapeles' : 'Paste from clipboard'}
                   >
@@ -1111,11 +1246,12 @@ export default function App() {
                 onKeyDown={(e) => e.key === 'Enter' && handleAddMore()}
               />
               <button 
-                className="paste-btn"
-                style={{ height: 'auto', boxShadow: '4px 4px 0px 0px var(--shadow-color)' }}
+                className="geometric-btn paste-btn"
                 onClick={handlePasteClipboard}
+                title={lang === 'es' ? 'Pegar del portapapeles' : 'Paste from clipboard'}
               >
                 <Icons.Paste />
+                <span>{lang === 'es' ? 'PEGAR' : 'PASTE'}</span>
               </button>
               <button 
                 className="geometric-btn primary" 
@@ -1127,23 +1263,24 @@ export default function App() {
             </div>
 
             {/* Global Presets */}
-            <div className="global-presets-card">
-              <span className="preset-label">{lang === 'es' ? 'PREAJUSTE GLOBAL:' : 'GLOBAL PRESET:'}</span>
-              
-              <select 
-                className="geometric-select" 
-                style={{ backgroundColor: 'var(--accent-amber)', color: '#000000', borderColor: 'var(--border-color)' }}
-                value={globalSettings.format} 
-                onChange={e => setGlobalSettings({...globalSettings, format: e.target.value})}
-              >
-                <option value="video">VIDEO (MP4)</option>
-                <option value="audio">AUDIO (MP3)</option>
-              </select>
-              
-              {globalSettings.format === 'video' ? (
-                <>
+            <div className={`global-presets-card ${isProMode ? 'pro-active' : ''}`}>
+              {/* Controles Base: Fijos y anclados a la izquierda para que nunca se muevan */}
+              <div className="presets-left-group">
+                <span className="preset-label">{lang === 'es' ? 'PREAJUSTE GLOBAL:' : 'GLOBAL PRESET:'}</span>
+                
+                <select 
+                  className="geometric-select preset-format-select" 
+                  style={!isProMode ? { backgroundColor: 'var(--accent-amber)', color: '#000000', borderColor: 'var(--border-color)' } : {}}
+                  value={globalSettings.format} 
+                  onChange={e => setGlobalSettings({...globalSettings, format: e.target.value})}
+                >
+                  <option value="video">VIDEO (MP4)</option>
+                  <option value="audio">AUDIO (MP3)</option>
+                </select>
+                
+                {globalSettings.format === 'video' ? (
                   <select 
-                    className="geometric-select" 
+                    className="geometric-select preset-quality-select" 
                     value={globalSettings.quality} 
                     onChange={e => setGlobalSettings({...globalSettings, quality: e.target.value})}
                   >
@@ -1152,11 +1289,21 @@ export default function App() {
                     <option value="1080p">1080P (FULL HD)</option>
                     <option value="720p">720P (HD)</option>
                   </select>
-                  
+                ) : (
+                  <span className="mp3-fidelity-label" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 800, color: isProMode ? '#000000' : 'var(--accent-amber)' }}>
+                    MP3 320 KBPS (ULTRA HIGH FIDELITY)
+                  </span>
+                )}
+              </div>
+
+              {/* Controles PRO: Solo aparecen cuando el modo pro está activo, sin desplazar la base */}
+              {isProMode && globalSettings.format === 'video' && (
+                <div className="presets-pro-group">
                   <select 
-                    className="geometric-select" 
+                    className="geometric-select pro-dropdown-animate" 
                     value={globalSettings.codec} 
                     onChange={e => setGlobalSettings({...globalSettings, codec: e.target.value})}
+                    title={lang === 'es' ? 'Códec de Video (PRO)' : 'Video Codec (PRO)'}
                   >
                     <option value="any">{lang === 'es' ? 'CUALQUIER CÓDEC' : 'ANY CODEC'}</option>
                     <option value="h264">H.264 (NATIVO)</option>
@@ -1164,12 +1311,48 @@ export default function App() {
                     <option value="vp9">VP9 (YT)</option>
                     <option value="av1">AV1</option>
                   </select>
-                </>
-              ) : (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 800, color: 'var(--accent-amber)' }}>
-                  MP3 320 KBPS (ULTRA HIGH FIDELITY)
-                </span>
+
+                  <select 
+                    className="geometric-select pro-dropdown-animate" 
+                    value={globalSettings.hdr || 'any'} 
+                    onChange={e => setGlobalSettings({...globalSettings, hdr: e.target.value})}
+                    title={lang === 'es' ? 'Rango Dinámico (HDR / SDR) (PRO)' : 'Dynamic Range (HDR / SDR) (PRO)'}
+                  >
+                    <option value="any">{lang === 'es' ? 'HDR: AUTO' : 'HDR: AUTO'}</option>
+                    <option value="hdr">{lang === 'es' ? 'FORZAR HDR' : 'FORCE HDR'}</option>
+                    <option value="sdr">{lang === 'es' ? 'SOLO SDR' : 'SDR ONLY'}</option>
+                  </select>
+
+                  <select 
+                    className="geometric-select pro-dropdown-animate" 
+                    value={globalSettings.fps || 'any'} 
+                    onChange={e => setGlobalSettings({...globalSettings, fps: e.target.value})}
+                    title={lang === 'es' ? 'Cuadros por segundo FPS (PRO)' : 'Frames per second FPS (PRO)'}
+                  >
+                    <option value="any">{lang === 'es' ? 'FPS: AUTO' : 'FPS: AUTO'}</option>
+                    <option value="60">{lang === 'es' ? '60 FPS' : '60 FPS'}</option>
+                    <option value="30">{lang === 'es' ? '30 FPS' : '30 FPS'}</option>
+                  </select>
+                </div>
               )}
+
+              {/* Botón MODO PRO con apagador hasta el lado derecho */}
+              <button 
+                type="button"
+                className={`global-pro-toggle-btn ${isProMode ? 'active' : ''}`}
+                onClick={() => setIsProMode(!isProMode)}
+                title={lang === 'es' 
+                  ? (isProMode ? 'Modo PRO activo. Clic para volver a modo estándar.' : 'Activar Modo PRO (Códecs avanzados, HDR y FPS)') 
+                  : (isProMode ? 'PRO Mode active. Click for standard mode.' : 'Enable PRO Mode (Advanced Codecs, HDR & FPS)')}
+              >
+                <span className="pro-mode-pill">PRO</span>
+                <span className="pro-mode-label-text">
+                  {lang === 'es' ? (isProMode ? 'MODO PRO: ON' : 'MODO PRO: OFF') : (isProMode ? 'PRO MODE: ON' : 'PRO MODE: OFF')}
+                </span>
+                <div className="pro-switch-track">
+                  <div className="pro-switch-thumb" />
+                </div>
+              </button>
             </div>
 
             {/* Processing Table */}
@@ -1220,17 +1403,97 @@ export default function App() {
                           </select>
                           
                           {d.type === 'video' ? (
-                            <select 
-                              className="geometric-select" 
-                              style={{ maxWidth: '180px' }} 
-                              value={d.quality} 
-                              onChange={(e) => updateQuality(d.id, e.target.value)} 
-                              disabled={d.status === "ERROR" || d.status === "FAILED"}
-                            >
-                              {(d.options || []).filter(o => o.id !== 'audio_only').map(opt => (
-                                <option key={opt.id} value={opt.id}>{getOptionLabel(opt, lang)}</option>
-                              ))}
-                            </select>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
+                              <select 
+                                className="geometric-select" 
+                                style={{ maxWidth: '200px' }} 
+                                value={d.quality} 
+                                onChange={(e) => updateQuality(d.id, e.target.value)} 
+                                disabled={d.status === "ERROR" || d.status === "FAILED"}
+                              >
+                                {(() => {
+                                  const videoOpts = (d.options || []).filter(o => o.id !== 'audio_only');
+
+                                  if (!isProMode) {
+                                    // MODO ESTÁNDAR: Solo resoluciones estándar en H.264 nativo
+                                    const h264Opts = videoOpts.filter(o => {
+                                      const vc = (o.raw?.vcodec || '').toLowerCase();
+                                      return vc.startsWith('avc') || vc === 'h264';
+                                    });
+                                    const standardList = h264Opts.length > 0 ? h264Opts : videoOpts;
+
+                                    // Deduplicar resoluciones para una lista ultra limpia
+                                    const seenHeights = new Set();
+                                    const cleanList = [];
+                                    for (const opt of standardList) {
+                                      const h = opt.raw?.height || opt.id;
+                                      if (!seenHeights.has(h)) {
+                                        seenHeights.add(h);
+                                        cleanList.push(opt);
+                                      }
+                                    }
+
+                                    return (
+                                      <optgroup label={lang === 'es' ? '── FORMATOS ESTÁNDAR (H.264) ──' : '── STANDARD FORMATS (H.264) ──'}>
+                                        {cleanList.map(opt => {
+                                          const f = opt.raw;
+                                          const mb = f?.filesize ? Math.round(f.filesize / 1024 / 1024) + 'MB' : (f?.size_label ? f.size_label.trim() : '');
+                                          const mbText = mb ? ` · ${mb}` : '';
+                                          const label = f 
+                                            ? `${f.height}P · H.264${mbText}` 
+                                            : opt.label.replace(/\s*\((NATIVO|NATIVE)\)/gi, '');
+                                          return (
+                                            <option key={opt.id} value={opt.id}>{label}</option>
+                                          );
+                                        })}
+                                      </optgroup>
+                                    );
+                                  }
+
+                                  // MODO PRO: Lista completa con HDR, codecs, optgroups
+                                  const hdrOpts = videoOpts.filter(o => isFormatHDR(o.raw));
+                                  const sdrOpts = videoOpts.filter(o => !isFormatHDR(o.raw));
+
+                                  if (hdrOpts.length > 0) {
+                                    return (
+                                      <>
+                                        <optgroup label={lang === 'es' ? '── FORMATOS HDR (10-BIT NATIVO) ──' : '── HDR FORMATS (10-BIT NATIVE) ──'}>
+                                          {hdrOpts.map(opt => (
+                                            <option key={opt.id} value={opt.id}>{getOptionLabel(opt, lang)}</option>
+                                          ))}
+                                        </optgroup>
+                                        {sdrOpts.length > 0 && (
+                                          <optgroup label={lang === 'es' ? '── FORMATOS SDR ESTÁNDAR ──' : '── SDR STANDARD FORMATS ──'}>
+                                            {sdrOpts.map(opt => (
+                                              <option key={opt.id} value={opt.id}>{getOptionLabel(opt, lang)}</option>
+                                            ))}
+                                          </optgroup>
+                                        )}
+                                      </>
+                                    );
+                                  }
+
+                                  return (
+                                    <optgroup label={lang === 'es' ? '── FORMATOS SDR (ORIGEN SIN PISTA HDR) ──' : '── SDR FORMATS (NO HDR IN SOURCE) ──'}>
+                                      {videoOpts.map(opt => (
+                                        <option key={opt.id} value={opt.id}>{getOptionLabel(opt, lang)}</option>
+                                      ))}
+                                    </optgroup>
+                                  );
+                                })()}
+                              </select>
+                              {isProMode && (() => {
+                                const currentOpt = (d.options || []).find(o => o.id === d.quality);
+                                if (currentOpt && isFormatHDR(currentOpt.raw)) {
+                                  return (
+                                    <span className="hdr-pill-badge" title={lang === 'es' ? 'Alto Rango Dinámico (HDR 10-bit)' : 'High Dynamic Range (HDR 10-bit)'}>
+                                      HDR
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
                           ) : (
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 800, color: 'var(--accent-amber)' }}>
                               MP3 320K

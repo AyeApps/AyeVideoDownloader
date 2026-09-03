@@ -177,6 +177,22 @@
   background-color: #FFD600;
 }
 
+.ayetasks-tech-badge.offline {
+  border-color: #ff1744;
+}
+
+.ayetasks-tech-badge.offline .ayetasks-tech-badge-text {
+  color: #ff1744;
+}
+
+.ayetasks-tech-badge.checking {
+  border-color: #FFD600;
+}
+
+.ayetasks-tech-badge.checking .ayetasks-tech-badge-text {
+  color: #FFD600;
+}
+
 .ayetasks-tech-badge-text {
   font-size: 10px;
   font-weight: 900;

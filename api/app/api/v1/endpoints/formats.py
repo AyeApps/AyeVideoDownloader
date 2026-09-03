@@ -31,8 +31,9 @@ async def build_format_string(
     quality: str = "best",
     codec: str = "any",
     hdr: str = "any",
+    fps: str = "any",
     current_user: User = Depends(get_current_user),
 ) -> BuildFormatStringResponse:
     return BuildFormatStringResponse(
-        format_string=FormatService.build_format_string(quality, codec, hdr)
+        format_string=FormatService.build_format_string(quality, codec, hdr, fps)
     )

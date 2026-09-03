@@ -23,6 +23,7 @@ class DownloadJob(Document):
     quality: str = "best"
     codec: str = "any"
     hdr: str = "any"
+    fps: str = "any"
 
     selected_format_id: Optional[str] = None
     format_string: Optional[str] = None

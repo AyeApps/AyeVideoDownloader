@@ -15,8 +15,17 @@ class SSEClient: ObservableObject {
     private var task: URLSessionDataTask?
 
     private let baseURL: String = {
-        Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
-        ?? "https://ayevideodownloader-production.up.railway.app/api/v1"
+        if let custom = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String, !custom.isEmpty {
+            return custom
+        }
+        if let envUrl = ProcessInfo.processInfo.environment["API_BASE_URL"], !envUrl.isEmpty {
+            return envUrl
+        }
+        #if DEBUG
+        return "http://localhost:8002/api/v1"
+        #else
+        return "https://api-ayvddw.ayeapps.com/api/v1"
+        #endif
     }()
 
     func connect(jobId: String, token: String, onEvent: @escaping @Sendable (DownloadProgress?, String?) -> Void) {

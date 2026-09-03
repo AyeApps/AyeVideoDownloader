@@ -29,6 +29,7 @@ class BuildFormatStringRequest(BaseModel):
     quality: str = "best"
     codec: str = "any"
     hdr: str = "any"
+    fps: str = "any"
 
 class BuildFormatStringResponse(BaseModel):
     format_string: str
@@ -39,6 +40,7 @@ class CreateDownloadRequest(BaseModel):
     quality: str = "best"
     codec: str = "any"
     hdr: str = "any"
+    fps: str = "any"
     selected_format_id: Optional[str] = None
 
 class DownloadJobResponse(BaseModel):

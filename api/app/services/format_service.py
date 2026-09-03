@@ -93,7 +93,7 @@ class FormatService:
         )
 
     @staticmethod
-    def build_format_string(quality: str, codec: str, hdr: str) -> str:
+    def build_format_string(quality: str = "best", codec: str = "any", hdr: str = "any", fps: str = "any") -> str:
         HEIGHT = {
             "best": "",    "2160": "[height<=2160]", "1440": "[height<=1440]",
             "1080": "[height<=1080]", "720": "[height<=720]",
@@ -107,8 +107,11 @@ class FormatService:
         HDR = {
             "any": "", "sdr": "[dynamic_range=SDR]", "hdr": "[dynamic_range!=SDR]",
         }
+        FPS = {
+            "any": "", "60": "[fps>=50]", "30": "[fps<=35]",
+        }
         h  = HEIGHT.get(quality, "")
-        cr = CODEC.get(codec, "") + HDR.get(hdr, "")
+        cr = CODEC.get(codec, "") + HDR.get(hdr, "") + FPS.get(fps, "")
 
         if not cr:
             return f"bv{h}+ba[ext=m4a]/bv{h}+ba/b{h}[ext=mp4]/b{h}/best"

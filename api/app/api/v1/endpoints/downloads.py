@@ -34,7 +34,7 @@ async def create_download(
     elif body.selected_format_id:
         fmt_string = FormatService.build_format_string_from_id(body.selected_format_id)
     else:
-        fmt_string = FormatService.build_format_string(body.quality, body.codec, body.hdr)
+        fmt_string = FormatService.build_format_string(body.quality, body.codec, body.hdr, body.fps)
 
     job = DownloadJob(
         user_id=str(current_user.id),
@@ -43,6 +43,7 @@ async def create_download(
         quality=body.quality,
         codec=body.codec,
         hdr=body.hdr,
+        fps=body.fps,
         selected_format_id=body.selected_format_id,
         format_string=fmt_string,
     )
