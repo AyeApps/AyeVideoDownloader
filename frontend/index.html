@@ -7,28 +7,144 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
-    <title>AyeVideoDownloader</title>
-    <meta name="description" content="Descarga videos y audios en máxima calidad (4K, 1080p, MP3) sin límites. Motor de alta velocidad de la suite AyeApps." />
+    <title>AyeApps Video Downloader | Descarga videos en 4K y audio MP3</title>
+    <meta name="description" content="Descarga tus videos y audios favoritos de internet en la más alta calidad posible, al instante, directo a tu dispositivo y sin publicidad molesta." />
     <meta name="theme-color" content="#000000" />
     
     <!-- Open Graph / Meta -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://video.ayeapps.com" />
-    <meta property="og:title" content="AyeVideoDownloader" />
-    <meta property="og:description" content="Descarga videos y audios en máxima calidad (4K, 1080p, MP3) sin límites. Motor de alta velocidad de la suite AyeApps." />
+    <meta property="og:title" content="AyeApps Video Downloader | Descarga videos en 4K y audio MP3" />
+    <meta property="og:description" content="Descarga tus videos y audios favoritos de internet en la más alta calidad posible, al instante, directo a tu dispositivo y sin publicidad molesta." />
     <meta property="og:image" content="/favicon.svg" />
     
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="AyeVideoDownloader" />
-    <meta name="twitter:description" content="Descarga videos y audios en máxima calidad (4K, 1080p, MP3) sin límites." />
+    <meta name="twitter:title" content="AyeApps Video Downloader | Descarga videos en 4K y audio MP3" />
+    <meta name="twitter:description" content="Descarga tus videos y audios favoritos de internet en la más alta calidad posible, al instante, directo a tu dispositivo y sin publicidad molesta." />
+
+    <!-- Canonical & SEO -->
+    <link rel="canonical" href="https://video.ayeapps.com" />
+    <meta name="keywords" content="descargar videos youtube 4k, descargar tiktok sin marca de agua, youtube a mp3 320kbps, descargar reels instagram, video downloader 60fps, convertidor multimedia lossless, ayeapps" />
+    <meta name="robots" content="index, follow" />
 
     <!-- Google & Apple OAuth SDKs -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
+
+    <!-- Cloudflare Turnstile (Bot Protection) -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+
+    <!-- Structured Data (JSON-LD) for Search Engines & LLMs -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "@id": "https://video.ayeapps.com/#app",
+          "name": "AyeVideoDownloader",
+          "url": "https://video.ayeapps.com",
+          "applicationCategory": "MultimediaApplication",
+          "operatingSystem": "Web, macOS, iOS, Android",
+          "description": "Descarga videos en 4K y extrae audio de alta fidelidad sin límites ni pérdidas. Motor de alta velocidad de la suite AyeApps.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "featureList": [
+            "Descarga de videos en resolución 4K y 1080p a 60fps",
+            "Extracción de audio en MP3 a 320 kbps y WAV lossless",
+            "Preservación de códecs nativos AV1, VP9, Opus",
+            "Soporte para YouTube, TikTok sin marca de agua, Instagram, Twitter/X, Facebook y Vimeo"
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://video.ayeapps.com/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "¿Por qué AyeVideoDownloader requiere inicio de sesión?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "A diferencia de los sitios web llenos de publicidad basura y estafas, AyeVideoDownloader es un servicio de alta precisión de la suite AyeApps. El inicio de sesión nos permite proteger el ancho de banda del servidor contra abusos de bots, ofrecerte un historial personal de descargas y garantizar descargas a velocidad máxima."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Puedo descargar videos en 4K y 60 cuadros por segundo?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Sí, totalmente. El motor analiza las pistas de video más altas disponibles en el servidor original y une automáticamente la pista de video de máxima resolución con la pista de audio de mejor calidad."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Cómo descargo solo el audio en MP3 o WAV?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Una vez que ingresas la URL en la aplicación, puedes alternar la pestaña de Video a Audio. Puedes seleccionar MP3 a 320 kbps para máxima compatibilidad o WAV sin pérdida de compresión para producción musical y edición."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Tiene algún costo o suscripción?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Por el momento, por lanzamiento es 100% gratis. No necesitas pagar nada ni ingresar tarjetas de crédito; lo único que debes hacer por ahora es registrarte con tu cuenta para acceder a descargas ilimitadas."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Funciona en celulares y cualquier dispositivo?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Sí, funciona en cualquier dispositivo: iPhone, Android, tablets, Mac o PC con Windows. Solo entras desde tu navegador habitual y descargas directamente sin tener que instalar aplicaciones raras ni programas extras."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Fallback semántico estático para motores de búsqueda (Googlebot, Bing, Yahoo, DuckDuckGo) -->
+    <div id="root">
+      <header>
+        <h1>Descarga videos en 4K y extrae audio de alta fidelidad sin límites ni pérdidas — AyeApps Video Downloader</h1>
+        <p>Descarga tus videos y audios favoritos de internet en la más alta calidad posible, al instante, directo a tu dispositivo y sin publicidad molesta.</p>
+      </header>
+      <main>
+        <section>
+          <h2>Compatibilidad Multi-plataforma</h2>
+          <ul>
+            <li>YouTube: Videos en 4K/8K, Shorts, 60fps y HDR</li>
+            <li>TikTok: Videos sin marca de agua y pistas de audio originales</li>
+            <li>Instagram: Reels, Historias, Carruseles y publicaciones en alta resolución</li>
+            <li>X (Twitter): Videos con máxima tasa de bits y GIFs</li>
+            <li>Facebook, Vimeo, Twitch y Soundcloud</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Formatos y Tasas de Bits Soportados</h2>
+          <ul>
+            <li>MP4 2160p (4K UHD) con AV1/VP9 a 60fps</li>
+            <li>MP4 1080p (Full HD) con H.264/AVC</li>
+            <li>Audio MP3 estéreo masterizado a 320 kbps</li>
+            <li>Audio WAV lossless sin compresión de 24-bit</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+    <noscript>
+      <div style="padding: 2rem; text-align: center; font-family: sans-serif;">
+        <h2>JavaScript es requerido para la herramienta interactiva de AyeVideoDownloader.</h2>
+        <p>Por favor habilita JavaScript en tu navegador para continuar.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -455,6 +455,21 @@
   font-family: Courier, monospace;
 }
 
+/* Cloudflare Turnstile Bot Verification Container */
+.ayetasks-turnstile-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 65px;
+  margin: 6px 0 10px 0;
+  overflow: hidden;
+}
+
+.ayetasks-turnstile-container > div {
+  max-width: 100%;
+}
+
 .font-mono {
   font-family: Courier, monospace !important;
 }

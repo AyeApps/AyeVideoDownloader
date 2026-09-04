@@ -1,0 +1,15 @@
+# AyeVideoDownloader — Software Atelier
+
+> High-velocity, lossless multimedia conversion and extraction engine from the AyeApps suite.
+
+## Product & Capabilities
+- [AyeVideoDownloader](https://video.ayeapps.com): Precision multimedia conversion and download engine.
+- Supports resolutions up to 4K / 8K (HDR, 60fps) with native AV1 and VP9 bitstream preservation.
+- Lossless audio extraction in 320 kbps MP3, PCM WAV, and Opus.
+- Clean extraction from YouTube, TikTok (no watermark), Instagram Reels, X/Twitter, Facebook, Vimeo, and Twitch.
+- Zero malware, zero deceptive ads, and centralized single-sign-on powered by aye-auth.
+
+## Technical Architecture
+- Backend: FastAPI, Python 3.13, Async yt-dlp + ffmpeg multiplexing.
+- Frontend: React 19, Atelier Design System (Cyber-Amber #FE9D01, Deep Obsidian #050505, Neo-brutalist solid offsets).
+- Identity: SSO JWT via aye-auth (Google, Apple, Email).

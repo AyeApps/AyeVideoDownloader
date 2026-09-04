@@ -1,11 +1,11 @@
 {
     "schema_version": 1,
-    "commit": "f21ad9ec1c9097d80e93f7ba7274f947ef92c661",
-    "indexed_at": "2026-09-03T21:56:16Z",
+    "commit": "f724a1682f72e2ae7c8e43e2aed5ba2676ae540a",
+    "indexed_at": "2026-09-04T19:55:42Z",
     "project": "Users-alberto24dev-tech-code-aye-ayevideodownloader",
-    "nodes": 539,
-    "edges": 1273,
-    "original_size": 3407872,
-    "compressed_size": 411747,
+    "nodes": 577,
+    "edges": 1347,
+    "original_size": 2949120,
+    "compressed_size": 151626,
     "compression_level": 3
 }

@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './AuthScreen.css';
 import InteractiveDots from './InteractiveDots';
+import { trackLoginSuccess } from '../services/analytics';
+
+// Cloudflare Turnstile Key
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
 
 // Exact AyeLogo from AyeTasks
 const AyeLogo = ({ width = 56, color = '#FE9D01' }) => {
@@ -37,7 +41,8 @@ export default function AuthScreen({
   authApiUrl = defaultAuthUrl,
   currentLang = 'es',
   onLangChange,
-  onLoginSuccess
+  onLoginSuccess,
+  onBack
 }) {
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
   const [lang, setLang] = useState(() => currentLang || localStorage.getItem('aye_lang') || localStorage.getItem('preferred_lang') || 'es');
@@ -48,7 +53,7 @@ export default function AuthScreen({
     if (currentLang && currentLang !== lang) {
       setLang(currentLang);
     }
-  }, [currentLang]);
+  }, [currentLang, lang]);
 
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
@@ -56,6 +61,71 @@ export default function AuthScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isAccountNotFound, setIsAccountNotFound] = useState(false);
+
+  // Cloudflare Turnstile state & ref
+  const turnstileContainerRef = useRef(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileWidgetId, setTurnstileWidgetId] = useState(null);
+
+  // Initialize and re-render Cloudflare Turnstile
+  useEffect(() => {
+    let mounted = true;
+    let widgetId = null;
+
+    const renderWidget = () => {
+      if (!mounted || !turnstileContainerRef.current || !window.turnstile) return;
+      turnstileContainerRef.current.innerHTML = '';
+      try {
+        widgetId = window.turnstile.render(turnstileContainerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: isDark ? 'dark' : 'light',
+          size: 'normal',
+          callback: (token) => {
+            if (mounted) {
+              setTurnstileToken(token);
+              setAuthError('');
+            }
+          },
+          'expired-callback': () => {
+            if (mounted) setTurnstileToken('');
+          },
+          'error-callback': () => {
+            if (mounted) setTurnstileToken('');
+          }
+        });
+        if (mounted) setTurnstileWidgetId(widgetId);
+      } catch {
+        // Handled if widget cannot mount
+      }
+    };
+
+    if (window.turnstile) {
+      renderWidget();
+    } else {
+      const interval = setInterval(() => {
+        if (window.turnstile) {
+          clearInterval(interval);
+          renderWidget();
+        }
+      }, 250);
+      const timeout = setTimeout(() => clearInterval(interval), 7000);
+      return () => {
+        mounted = false;
+        clearInterval(interval);
+        clearTimeout(timeout);
+        if (widgetId && window.turnstile) {
+          try { window.turnstile.remove(widgetId); } catch {}
+        }
+      };
+    }
+
+    return () => {
+      mounted = false;
+      if (widgetId && window.turnstile) {
+        try { window.turnstile.remove(widgetId); } catch {}
+      }
+    };
+  }, [isDark, authMode]);
 
   // Check server health on Central Auth API
   useEffect(() => {
@@ -129,8 +199,8 @@ export default function AuthScreen({
     try {
       const endpoint = authMode === 'register' ? '/api/v1/auth/register' : '/api/v1/auth/login';
       const payload = authMode === 'register'
-        ? { name: authName.trim() || 'USUARIO AYE', email: trimmedEmail, password: trimmedPassword, app_client: 'video_downloader' }
-        : { email: trimmedEmail, password: trimmedPassword, app_client: 'video_downloader' };
+        ? { name: authName.trim() || 'USUARIO AYE', email: trimmedEmail, password: trimmedPassword, app_client: 'video_downloader', turnstile_token: turnstileToken || undefined }
+        : { email: trimmedEmail, password: trimmedPassword, app_client: 'video_downloader', turnstile_token: turnstileToken || undefined };
 
       const res = await fetch(`${authApiUrl}${endpoint}`, {
         method: 'POST',
@@ -149,12 +219,17 @@ export default function AuthScreen({
       }
 
       localStorage.setItem('aye_remembered_email', trimmedEmail);
+      trackLoginSuccess('email');
 
       if (onLoginSuccess) {
         onLoginSuccess(data, trimmedEmail);
       }
     } catch (err) {
       setAuthError(err.message.toUpperCase());
+      if (turnstileWidgetId && window.turnstile) {
+        try { window.turnstile.reset(turnstileWidgetId); } catch {}
+      }
+      setTurnstileToken('');
     } finally {
       setIsLoading(false);
     }
@@ -186,6 +261,7 @@ export default function AuthScreen({
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Error autenticando con Google');
+                trackLoginSuccess('google');
                 if (onLoginSuccess) {
                   onLoginSuccess(data, data.user?.email || 'google_user@ayeapps.com');
                 }
@@ -234,6 +310,7 @@ export default function AuthScreen({
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || 'Error autenticando con Apple');
+          trackLoginSuccess('apple');
           if (onLoginSuccess) {
             onLoginSuccess(data, data.user?.email || 'apple_user@ayeapps.com');
           }
@@ -297,6 +374,27 @@ export default function AuthScreen({
     <div className={`ayetasks-auth-root ${isDark ? 'dark' : 'light'}`}>
       {/* Reactive Interactive Dot Matrix Background (From AyeAppsWeb) */}
       <InteractiveDots />
+
+      {/* Optional Back to Landing button */}
+      {onBack && (
+        <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 50 }}>
+          <button
+            onClick={onBack}
+            className="ayetasks-control-btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              fontWeight: '700',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '12px'
+            }}
+          >
+            ← {lang === 'es' ? 'VOLVER A LA LANDING' : 'BACK TO LANDING'}
+          </button>
+        </div>
+      )}
 
       {/* Top Right Controls (Exact clone of AyeTasks) */}
       <div className="ayetasks-top-controls">
@@ -444,6 +542,11 @@ export default function AuthScreen({
                   <span>{authError}</span>
                 </div>
               ) : null}
+
+              {/* Turnstile Bot Verification */}
+              <div className="ayetasks-turnstile-container">
+                <div ref={turnstileContainerRef} id="turnstile-widget" />
+              </div>
 
               {/* Submit CTA */}
               <button

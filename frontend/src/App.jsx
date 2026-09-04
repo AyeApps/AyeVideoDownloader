@@ -2,7 +2,16 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 import AuthScreen from './components/AuthScreen';
 import './components/AuthScreen.css';
+import LandingPage from './components/LandingPage';
 import InteractiveDots from './components/InteractiveDots';
+import {
+  initGA,
+  trackPageView,
+  trackVideoInspect,
+  trackDownloadStart,
+  trackDownloadSuccess,
+  trackDownloadError
+} from './services/analytics';
 
 // SVG Icons
 const Icons = {
@@ -71,6 +80,24 @@ const MarqueeTitle = ({ text }) => {
   );
 };
 
+// Detect target platform safely for telemetry
+const detectPlatform = (url) => {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes('youtube.com') || host.includes('youtu.be')) return 'youtube';
+    if (host.includes('tiktok.com')) return 'tiktok';
+    if (host.includes('instagram.com')) return 'instagram';
+    if (host.includes('twitter.com') || host.includes('x.com')) return 'twitter';
+    if (host.includes('facebook.com') || host.includes('fb.watch')) return 'facebook';
+    if (host.includes('vimeo.com')) return 'vimeo';
+    if (host.includes('reddit.com')) return 'reddit';
+    if (host.includes('twitch.tv')) return 'twitch';
+    return host;
+  } catch {
+    return 'unknown';
+  }
+};
+
 export default function App() {
   const [linkInput, setLinkInput] = useState("");
   const [downloads, setDownloads] = useState([]);
@@ -128,6 +155,16 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('aye_token') || '');
   const [userEmail, setUserEmail] = useState(localStorage.getItem('aye_email') || '');
   const [userName, setUserName] = useState(localStorage.getItem('aye_name') || '');
+  const [showAuth, setShowAuth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        window.location.pathname === '/login' ||
+        window.location.search.includes('auth=1') ||
+        window.location.hash === '#login'
+      );
+    }
+    return false;
+  });
   const [activeTab, setActiveTab] = useState('queue');
   const [downloadingIds, setDownloadingIds] = useState(new Set());
   const [toastMessage, setToastMessage] = useState(null);
@@ -161,6 +198,24 @@ export default function App() {
     const timer = setTimeout(() => setToastMessage(null), 5000);
     return () => clearTimeout(timer);
   }, [toastMessage]);
+
+  // Initialize GA4 Telemetry
+  useEffect(() => {
+    initGA();
+  }, []);
+
+  // Track virtual page views
+  useEffect(() => {
+    if (!token) {
+      if (showAuth) {
+        trackPageView('/login', 'Iniciar Sesión | AyeApps Video Downloader');
+      } else {
+        trackPageView('/', 'AyeApps Video Downloader | Descarga videos en 4K y audio MP3');
+      }
+    } else {
+      trackPageView('/app', 'Atelier Downloader | AyeApps');
+    }
+  }, [token, showAuth]);
 
   // Apply Theme
   useEffect(() => {
@@ -236,7 +291,7 @@ export default function App() {
       });
 
     return () => { isMounted = false; };
-  }, []);
+  }, [AUTH_API_URL]);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   const toggleLang = () => {
@@ -250,6 +305,7 @@ export default function App() {
     setUserEmail('');
     setUserName('');
     setIsProfileOpen(false);
+    setShowAuth(false);
     try {
       localStorage.removeItem('aye_token');
       localStorage.removeItem('aye_refresh_token');
@@ -543,6 +599,9 @@ export default function App() {
       alert(lang === 'es' ? 'El formato del enlace no es válido.' : 'The video URL format is invalid.');
       return;
     }
+
+    // Telemetry
+    trackVideoInspect(rawUrl, detectPlatform(rawUrl));
     
     const id = Date.now();
     const newDownload = {
@@ -601,7 +660,6 @@ export default function App() {
         else codecDesc = f.vcodec.toUpperCase();
         
         const isHDR = isFormatHDR(f);
-        const hdrDesc = isHDR ? ' ✦ [HDR]' : '';
         const mb = f.filesize ? Math.round(f.filesize / 1024 / 1024) + 'MB' : (f.size_label ? f.size_label.trim() : '');
         const mbText = mb ? ` · ${mb}` : '';
 
@@ -763,8 +821,20 @@ export default function App() {
           ...h.filter(item => item.jobId !== jobId)
         ]);
 
+        // Telemetry
+        trackDownloadSuccess({
+          platform: detectPlatform(currentItem?.url || ''),
+          formatType: currentItem?.type || 'video',
+          quality: currentItem?.quality || 'best'
+        });
+
         triggerFileDownload(jobId, builtName, currentItem?.type || 'video');
       } else if (data.status === 'error' || data.status === 'FAILED') {
+        const currentItem = downloads.find(d => d.id === id);
+        trackDownloadError({
+          platform: detectPlatform(currentItem?.url || ''),
+          error: data.error || 'Download failed'
+        });
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
       } else {
         setDownloads(prev => prev.map(d => {
@@ -789,6 +859,12 @@ export default function App() {
   const handleDownloadAll = () => {
     downloads.forEach(d => {
       if (d.status === "READY") {
+        trackDownloadStart({
+          platform: detectPlatform(d.url),
+          formatType: d.type === 'audio' ? 'audio' : 'video',
+          quality: d.quality
+        });
+
         setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, status: "STARTING...", stage: "video", video_progress: 0, audio_progress: 0 } : item));
         
         authFetch(`${API_BASE_URL}/api/download`, {
@@ -879,30 +955,43 @@ export default function App() {
   };
 
   if (!token) {
+    if (showAuth) {
+      return (
+        <AuthScreen
+          authApiUrl={AUTH_API_URL}
+          appName="AYE VIDEO DOWNLOADER"
+          currentLang={lang}
+          onLangChange={setLang}
+          onBack={() => setShowAuth(false)}
+          onLoginSuccess={(data, emailUsed) => {
+            const accessToken = data.access_token;
+            const userObj = data.user || {};
+            const userEmailVal = userObj.email || emailUsed;
+            const userNameVal = userObj.name || userEmailVal.split('@')[0];
+
+            setToken(accessToken);
+            setUserEmail(userEmailVal);
+            setUserName(userNameVal);
+
+            localStorage.setItem('aye_token', accessToken);
+            if (data.refresh_token) {
+              localStorage.setItem('aye_refresh_token', data.refresh_token);
+            }
+            localStorage.setItem('aye_email', userEmailVal);
+            localStorage.setItem('aye_name', userNameVal);
+            localStorage.setItem('aye_user', JSON.stringify(userObj));
+          }}
+        />
+      );
+    }
+
     return (
-      <AuthScreen
-        authApiUrl={AUTH_API_URL}
-        appName="AYE VIDEO DOWNLOADER"
+      <LandingPage
         currentLang={lang}
         onLangChange={setLang}
-        onLoginSuccess={(data, emailUsed) => {
-          const accessToken = data.access_token;
-          const userObj = data.user || {};
-          const userEmailVal = userObj.email || emailUsed;
-          const userNameVal = userObj.name || userEmailVal.split('@')[0];
-
-          setToken(accessToken);
-          setUserEmail(userEmailVal);
-          setUserName(userNameVal);
-
-          localStorage.setItem('aye_token', accessToken);
-          if (data.refresh_token) {
-            localStorage.setItem('aye_refresh_token', data.refresh_token);
-          }
-          localStorage.setItem('aye_email', userEmailVal);
-          localStorage.setItem('aye_name', userNameVal);
-          localStorage.setItem('aye_user', JSON.stringify(userObj));
-        }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onStartAuth={() => setShowAuth(true)}
       />
     );
   }
