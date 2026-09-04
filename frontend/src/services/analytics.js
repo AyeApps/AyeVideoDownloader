@@ -6,7 +6,7 @@
  * Gracefully falls back if GA ID is missing or in offline environments.
  */
 
-const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || '';
+const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-CQRER10PFR';
 let isInitialized = false;
 
 /**
@@ -15,6 +15,12 @@ let isInitialized = false;
 export const initGA = () => {
   if (typeof window === 'undefined') return;
   if (isInitialized) return;
+
+  // If already loaded via script tag in index.html
+  if (window.gtag) {
+    isInitialized = true;
+    return;
+  }
 
   if (!GA_MEASUREMENT_ID) {
     if (import.meta.env.DEV) {
