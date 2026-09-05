@@ -375,23 +375,22 @@ export default function AuthScreen({
       {/* Reactive Interactive Dot Matrix Background (From AyeAppsWeb) */}
       <InteractiveDots />
 
-      {/* Optional Back to Landing button */}
+      {/* Top Left Controls: Back to Landing on Web */}
       {onBack && (
-        <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 50 }}>
+        <div style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 100 }}>
           <button
             onClick={onBack}
             className="ayetasks-control-btn"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
+              padding: '0 14px',
               cursor: 'pointer',
               fontWeight: '700',
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '12px'
+              fontSize: '12px',
+              letterSpacing: '0.8px',
             }}
           >
-            ← {lang === 'es' ? 'VOLVER A LA LANDING' : 'BACK TO LANDING'}
+            ← {lang === 'es' ? 'INICIO' : 'HOME'}
           </button>
         </div>
       )}
