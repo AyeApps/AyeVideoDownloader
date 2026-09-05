@@ -4,7 +4,7 @@ import InteractiveDots from './InteractiveDots';
 import { trackLoginSuccess } from '../services/analytics';
 
 // Cloudflare Turnstile Key
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAEn3YN77Mt7jKxas';
 
 // Exact AyeLogo from AyeTasks
 const AyeLogo = ({ width = 56, color = '#FE9D01' }) => {
