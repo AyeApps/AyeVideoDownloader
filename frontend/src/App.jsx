@@ -173,7 +173,9 @@ export default function App() {
   const [guestQuota, setGuestQuota] = useState(() => {
     try {
       const stored = parseInt(localStorage.getItem('aye_guest_downloads') || '0', 10);
-      const used = isNaN(stored) ? 0 : stored;
+      const ts = parseInt(localStorage.getItem('aye_guest_downloads_ts') || '0', 10);
+      const isExpired = ts > 0 && (Date.now() - ts > 24 * 60 * 60 * 1000);
+      const used = (isNaN(stored) || isExpired) ? 0 : stored;
       return {
         used: used,
         remaining: Math.max(0, 2 - used),
@@ -195,9 +197,18 @@ export default function App() {
         if (res.ok && mounted) {
           const data = await res.json();
           const serverUsed = data.used || 0;
-          const localUsed = parseInt(localStorage.getItem('aye_guest_downloads') || '0', 10) || 0;
-          const finalUsed = Math.max(serverUsed, localUsed);
+          const localStored = parseInt(localStorage.getItem('aye_guest_downloads') || '0', 10) || 0;
+          const ts = parseInt(localStorage.getItem('aye_guest_downloads_ts') || '0', 10);
+          const isExpired = ts > 0 && (Date.now() - ts > 24 * 60 * 60 * 1000);
+
+          const finalUsed = isExpired ? serverUsed : Math.max(serverUsed, localStored);
           localStorage.setItem('aye_guest_downloads', finalUsed.toString());
+          if (finalUsed > 0 && (!ts || isExpired)) {
+            localStorage.setItem('aye_guest_downloads_ts', Date.now().toString());
+          } else if (finalUsed === 0) {
+            localStorage.removeItem('aye_guest_downloads_ts');
+          }
+
           setGuestQuota({
             used: finalUsed,
             remaining: Math.max(0, 2 - finalUsed),
@@ -893,6 +904,7 @@ export default function App() {
           const nextRemaining = Math.max(0, 2 - nextUsed);
           setGuestQuota({ used: nextUsed, remaining: nextRemaining, limit: 2 });
           localStorage.setItem('aye_guest_downloads', nextUsed.toString());
+          localStorage.setItem('aye_guest_downloads_ts', Date.now().toString());
 
           const toastNotice = lang === 'es'
             ? (nextUsed === 1
@@ -974,6 +986,7 @@ export default function App() {
             if (errData.detail?.code === 'GUEST_LIMIT_REACHED' || errData.code === 'GUEST_LIMIT_REACHED') {
               setGuestQuota({ used: 2, remaining: 0, limit: 2 });
               localStorage.setItem('aye_guest_downloads', '2');
+              localStorage.setItem('aye_guest_downloads_ts', Date.now().toString());
               setAuthInitialMode('register');
               setAuthCustomMessage(
                 (errData.detail && errData.detail.message) ||
