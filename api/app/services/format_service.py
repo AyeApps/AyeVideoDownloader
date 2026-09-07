@@ -52,6 +52,24 @@ class FormatService:
 
         if not info:
             err = stderr.decode("utf-8", errors="replace")[:500]
+            if any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
+                logger.warning("yt-dlp -j falló por cookies inválidas, reintentando sin cookies: url=%s err=%s", url, err[:120])
+                base_args_no_cookies = get_base_ytdlp_args(ignore_cookies=True)
+                proc_retry = await asyncio.create_subprocess_exec(
+                    "yt-dlp", *base_args_no_cookies, "-j", "--no-playlist", "--skip-download", url,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout_r, stderr_r = await proc_retry.communicate()
+                if stdout_r:
+                    try:
+                        info = json.loads(stdout_r.decode("utf-8"))
+                    except Exception:
+                        info = None
+                if not info:
+                    err = stderr_r.decode("utf-8", errors="replace")[:500]
+
+        if not info:
             logger.warning("yt-dlp -j falló: url=%s err=%s", url, err)
             raise ValueError(f"No se pudo obtener información: {err}")
         raw_formats = info.get("formats", [])

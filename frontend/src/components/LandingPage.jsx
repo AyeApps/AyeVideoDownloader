@@ -19,10 +19,30 @@ export default function LandingPage({
   onStartGuestDownload
 }) {
   const [activeFaq, setActiveFaq] = useState(null);
-  const [demoUrl, setDemoUrl] = useState('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  const [demoUrl, setDemoUrl] = useState('');
   const [demoSelectedFormat, setDemoSelectedFormat] = useState('4k');
 
   const isEs = currentLang === 'es';
+
+  const handleTryDownloaderClean = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (guestQuota.remaining <= 0) {
+      trackAuthOpened('guest_limit_reached');
+      onStartAuth({
+        mode: 'register',
+        customMessage: isEs
+          ? 'Has alcanzado el límite de 2 descargas gratuitas. Regístrate en 10 segundos para descargas ilimitadas en 4K.'
+          : 'You have reached the limit of 2 free downloads. Register in 10 seconds for unlimited 4K downloads.'
+      });
+      return;
+    }
+
+    if (onStartGuestDownload) {
+      onStartGuestDownload('', null);
+    } else {
+      onStartAuth();
+    }
+  };
 
   const handleTryAction = (e) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -239,7 +259,7 @@ export default function LandingPage({
           </p>
 
           <div className="hero-cta-group">
-            <button className="primary-cta-btn bracket-corners" onClick={handleTryAction}>
+            <button className="primary-cta-btn bracket-corners" onClick={handleTryDownloaderClean}>
               <span>{guestQuota.remaining > 0 ? t.ctaPrimary : t.loginBtn}</span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="square"/>
@@ -564,7 +584,7 @@ export default function LandingPage({
             <div className="bottom-cta-content">
               <h2 className="bottom-cta-title">{t.ctaBannerTitle}</h2>
               <p className="bottom-cta-sub">{t.ctaBannerSub}</p>
-              <button className="bottom-cta-btn bracket-corners" onClick={handleTryAction}>
+              <button className="bottom-cta-btn bracket-corners" onClick={handleTryDownloaderClean}>
                 {guestQuota.remaining > 0 ? (isEs ? 'PROBAR SIN CUENTA (2 GRATIS)' : 'TRY WITHOUT ACCOUNT (2 FREE)') : t.ctaBannerBtn}
               </button>
 

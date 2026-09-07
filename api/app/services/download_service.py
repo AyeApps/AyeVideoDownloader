@@ -35,6 +35,22 @@ class DownloadService:
         
         await process.wait()
         
+        if process.returncode != 0 and any(ck in last_error_line.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
+            logger.warning("Download job %s falló por cookies rotadas/inválidas, reintentando sin cookies...", job.id)
+            args_no_cookies = DownloadService._build_args(job, temp_dir, ignore_cookies=True)
+            process = await asyncio.create_subprocess_exec(
+                "yt-dlp", *args_no_cookies,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            last_error_line = ""
+            async for line in process.stdout:
+                decoded = line.decode("utf-8", errors="replace").strip()
+                if any(err_kw in decoded for err_kw in ("ERROR:", "WARNING:", "HTTP Error", "HTTPError")):
+                    last_error_line = decoded
+                await DownloadService._parse_progress(job, decoded)
+            await process.wait()
+
         if process.returncode == 0:
             job.status = JobStatus.DONE
             job.stage = "done"
@@ -61,9 +77,9 @@ class DownloadService:
         await job.save()
 
     @staticmethod
-    def _build_args(job: DownloadJob, output_dir: Path) -> list[str]:
+    def _build_args(job: DownloadJob, output_dir: Path, ignore_cookies: bool = False) -> list[str]:
         output_template = str(output_dir / "%(title)s.%(ext)s")
-        base_args = get_base_ytdlp_args()
+        base_args = get_base_ytdlp_args(ignore_cookies=ignore_cookies)
         
         if job.format in ("audioMP3", "audio"):
             return base_args + ["--no-playlist", "-x", "--audio-format", "mp3", "--newline", "-o", output_template, job.url]

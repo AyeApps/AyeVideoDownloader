@@ -3,7 +3,7 @@ import base64
 from typing import List
 from app.core.config import settings
 
-def get_base_ytdlp_args() -> List[str]:
+def get_base_ytdlp_args(ignore_cookies: bool = False) -> List[str]:
     args: List[str] = [
         "--no-check-certificates",
         "--prefer-free-formats",
@@ -24,26 +24,27 @@ def get_base_ytdlp_args() -> List[str]:
         args.extend(["--extractor-args", f"youtube:player_client={settings.ytdlp_player_client}"])
 
     # Cookie support: env Base64, env Text, explicitly configured path, or default /app/cookies.txt
-    cookies_target = "/tmp/ytdlp_cookies.txt"
-    if settings.ytdlp_cookies_b64:
-        try:
-            decoded = base64.b64decode(settings.ytdlp_cookies_b64).decode("utf-8", errors="ignore")
-            with open(cookies_target, "w", encoding="utf-8") as f:
-                f.write(decoded)
-            args.extend(["--cookies", cookies_target])
-        except Exception:
-            pass
-    elif settings.ytdlp_cookies_text:
-        try:
-            with open(cookies_target, "w", encoding="utf-8") as f:
-                f.write(settings.ytdlp_cookies_text)
-            args.extend(["--cookies", cookies_target])
-        except Exception:
-            pass
-    elif settings.ytdlp_cookies_path and os.path.exists(settings.ytdlp_cookies_path):
-        args.extend(["--cookies", settings.ytdlp_cookies_path])
-    elif os.path.exists("/app/cookies.txt"):
-        args.extend(["--cookies", "/app/cookies.txt"])
+    if not ignore_cookies:
+        cookies_target = "/tmp/ytdlp_cookies.txt"
+        if settings.ytdlp_cookies_b64:
+            try:
+                decoded = base64.b64decode(settings.ytdlp_cookies_b64).decode("utf-8", errors="ignore")
+                with open(cookies_target, "w", encoding="utf-8") as f:
+                    f.write(decoded)
+                args.extend(["--cookies", cookies_target])
+            except Exception:
+                pass
+        elif settings.ytdlp_cookies_text:
+            try:
+                with open(cookies_target, "w", encoding="utf-8") as f:
+                    f.write(settings.ytdlp_cookies_text)
+                args.extend(["--cookies", cookies_target])
+            except Exception:
+                pass
+        elif settings.ytdlp_cookies_path and os.path.exists(settings.ytdlp_cookies_path):
+            args.extend(["--cookies", settings.ytdlp_cookies_path])
+        elif os.path.exists("/app/cookies.txt"):
+            args.extend(["--cookies", "/app/cookies.txt"])
 
     # Proxy support
     if settings.ytdlp_proxy:
