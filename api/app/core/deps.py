@@ -74,3 +74,25 @@ async def get_current_user(
         )
     except JWTError:
         raise credentials_exception
+
+async def get_optional_current_user(
+    request: Request,
+    bearer_token: Optional[str] = Depends(oauth2_scheme),
+    token: Optional[str] = None
+) -> Optional[User]:
+    auth_token = bearer_token or token
+    if not auth_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            auth_token = auth_header.replace("Bearer ", "").strip()
+            
+    if not auth_token:
+        return None
+        
+    try:
+        return await get_current_user(request=request, bearer_token=bearer_token, token=token)
+    except HTTPException:
+        return None
+    except Exception:
+        return None
+

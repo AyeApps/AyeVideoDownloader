@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Optional
 from app.schemas.downloads import FetchFormatsRequest, FetchFormatsResponse, BuildFormatStringResponse
 from app.services.format_service import FormatService
-from app.core.deps import get_current_user
+from app.core.deps import get_optional_current_user
 from app.models.user import User
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/formats", tags=["formats"])
 async def fetch_formats(
     request: Request,
     body: FetchFormatsRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ) -> FetchFormatsResponse:
     try:
         return await FormatService.fetch_formats(str(body.url))
@@ -32,7 +33,7 @@ async def build_format_string(
     codec: str = "any",
     hdr: str = "any",
     fps: str = "any",
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ) -> BuildFormatStringResponse:
     return BuildFormatStringResponse(
         format_string=FormatService.build_format_string(quality, codec, hdr, fps)

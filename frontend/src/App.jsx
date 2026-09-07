@@ -170,6 +170,48 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [serverStatus, setServerStatus] = useState('checking');
 
+  const [guestQuota, setGuestQuota] = useState(() => {
+    try {
+      const stored = parseInt(localStorage.getItem('aye_guest_downloads') || '0', 10);
+      const used = isNaN(stored) ? 0 : stored;
+      return {
+        used: used,
+        remaining: Math.max(0, 2 - used),
+        limit: 2
+      };
+    } catch {
+      return { used: 0, remaining: 2, limit: 2 };
+    }
+  });
+  const [isGuestActive, setIsGuestActive] = useState(false);
+  const [authCustomMessage, setAuthCustomMessage] = useState('');
+  const [authInitialMode, setAuthInitialMode] = useState('login');
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchGuestQuota = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/downloads/guest-quota`);
+        if (res.ok && mounted) {
+          const data = await res.json();
+          const serverUsed = data.used || 0;
+          const localUsed = parseInt(localStorage.getItem('aye_guest_downloads') || '0', 10) || 0;
+          const finalUsed = Math.max(serverUsed, localUsed);
+          localStorage.setItem('aye_guest_downloads', finalUsed.toString());
+          setGuestQuota({
+            used: finalUsed,
+            remaining: Math.max(0, 2 - finalUsed),
+            limit: 2
+          });
+        }
+      } catch {}
+    };
+
+    fetchGuestQuota();
+    return () => { mounted = false; };
+  }, [API_BASE_URL]);
+
+
   useEffect(() => {
     let mounted = true;
     const checkServer = async () => {
@@ -323,12 +365,14 @@ export default function App() {
     const headers = {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
-      'Authorization': `Bearer ${currentToken}`
     };
+    if (currentToken) {
+      headers['Authorization'] = `Bearer ${currentToken}`;
+    }
 
     let res = await fetch(url, { ...options, headers });
 
-    if (res.status === 401) {
+    if (res.status === 401 && currentToken) {
       const refreshToken = localStorage.getItem('aye_refresh_token');
       if (refreshToken) {
         try {
@@ -600,6 +644,18 @@ export default function App() {
       return;
     }
 
+    // Check guest quota
+    if (!token && guestQuota.remaining <= 0) {
+      setAuthInitialMode('register');
+      setAuthCustomMessage(
+        lang === 'es'
+          ? 'Has alcanzado el límite de 2 descargas gratuitas. Regístrate en 10 segundos para descargas ilimitadas en 4K.'
+          : 'You have reached the limit of 2 free downloads. Register in 10 seconds for unlimited 4K downloads.'
+      );
+      setShowAuth(true);
+      return;
+    }
+
     // Telemetry
     trackVideoInspect(rawUrl, detectPlatform(rawUrl));
     
@@ -638,7 +694,7 @@ export default function App() {
       if (res.status === 401) { 
         clearInterval(progressTimer);
         setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR", name: lang === 'es' ? "SESIÓN EXPIRADA. INICIA SESIÓN DE NUEVO" : "SESSION EXPIRED. PLEASE LOG IN AGAIN" } : d));
-        handleLogout(); 
+        if (token) handleLogout(); 
         return; 
       }
       const data = await res.json();
@@ -757,7 +813,8 @@ export default function App() {
     try {
       const fileName = fallbackName || `video_${jobId}.${fileType === 'audio' ? 'mp3' : 'mp4'}`;
       const currentToken = token || localStorage.getItem('aye_token') || '';
-      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file?token=${encodeURIComponent(currentToken)}`;
+      const tokenQuery = currentToken ? `?token=${encodeURIComponent(currentToken)}` : '';
+      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file${tokenQuery}`;
       
       const a = document.createElement('a');
       a.href = downloadUrl;
@@ -767,11 +824,13 @@ export default function App() {
       a.click();
       document.body.removeChild(a);
 
-      setToastMessage({
-        text: lang === 'es' 
-          ? `✓ Transfiriendo "${fileName}" a tu navegador...` 
-          : `✓ Transferring "${fileName}" to your browser...`
-      });
+      if (token) {
+        setToastMessage({
+          text: lang === 'es' 
+            ? `✓ Transfiriendo "${fileName}" a tu navegador...` 
+            : `✓ Transferring "${fileName}" to your browser...`
+        });
+      }
     } catch {
       alert(lang === 'es' ? 'Error al iniciar descarga del archivo. Intenta de nuevo.' : 'Failed to download file. Please retry.');
     } finally {
@@ -784,7 +843,7 @@ export default function App() {
   const pollDownloadStatus = async (id, jobId) => {
     try {
       const res = await authFetch(`${API_BASE_URL}/api/download/${jobId}`);
-      if (res.status === 401) { handleLogout(); return; }
+      if (res.status === 401 && token) { handleLogout(); return; }
       const data = await res.json();
       
       if (data.status === 'done' || data.status === 'DONE') {
@@ -828,6 +887,24 @@ export default function App() {
           quality: currentItem?.quality || 'best'
         });
 
+        // Guest quota decrement & notification
+        if (!token) {
+          const nextUsed = Math.min(2, (guestQuota.used || 0) + 1);
+          const nextRemaining = Math.max(0, 2 - nextUsed);
+          setGuestQuota({ used: nextUsed, remaining: nextRemaining, limit: 2 });
+          localStorage.setItem('aye_guest_downloads', nextUsed.toString());
+
+          const toastNotice = lang === 'es'
+            ? (nextUsed === 1
+                ? 'Descarga 1/2 completada. Te queda 1 descarga de prueba gratuita sin cuenta.'
+                : 'Descarga 2/2 completada. Has alcanzado el límite de 2 descargas gratuitas. Inicia sesión para descargas ilimitadas.')
+            : (nextUsed === 1
+                ? 'Download 1/2 completed. You have 1 free trial download left without an account.'
+                : 'Download 2/2 completed. You have reached the limit of 2 free downloads. Sign in for unlimited downloads.');
+          
+          setToastMessage({ text: toastNotice });
+        }
+
         triggerFileDownload(jobId, builtName, currentItem?.type || 'video');
       } else if (data.status === 'error' || data.status === 'FAILED') {
         const currentItem = downloads.find(d => d.id === id);
@@ -857,6 +934,17 @@ export default function App() {
   };
 
   const handleDownloadAll = () => {
+    if (!token && guestQuota.remaining <= 0) {
+      setAuthInitialMode('register');
+      setAuthCustomMessage(
+        lang === 'es'
+          ? 'Has alcanzado el límite de 2 descargas gratuitas. Regístrate en 10 segundos para descargas ilimitadas en 4K.'
+          : 'You have reached the limit of 2 free downloads. Register in 10 seconds for unlimited 4K downloads.'
+      );
+      setShowAuth(true);
+      return;
+    }
+
     downloads.forEach(d => {
       if (d.status === "READY") {
         trackDownloadStart({
@@ -879,18 +967,40 @@ export default function App() {
             selected_format_id: d.type === 'audio' ? null : d.quality
           })
         })
-        .then(res => {
-          if (res.status === 401) { handleLogout(); return; }
+        .then(async res => {
+          if (res.status === 401 && token) { handleLogout(); return; }
+          if (res.status === 403) {
+            const errData = await res.json().catch(() => ({}));
+            if (errData.detail?.code === 'GUEST_LIMIT_REACHED' || errData.code === 'GUEST_LIMIT_REACHED') {
+              setGuestQuota({ used: 2, remaining: 0, limit: 2 });
+              localStorage.setItem('aye_guest_downloads', '2');
+              setAuthInitialMode('register');
+              setAuthCustomMessage(
+                (errData.detail && errData.detail.message) ||
+                (lang === 'es'
+                  ? 'Has alcanzado el límite de 2 descargas gratuitas. Regístrate en 10 segundos para descargas ilimitadas en 4K.'
+                  : 'You have reached the limit of 2 free downloads. Register in 10 seconds for unlimited 4K downloads.')
+              );
+              setShowAuth(true);
+              setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, status: "READY" } : item));
+              return;
+            }
+          }
+          if (!res.ok) {
+            throw new Error('Download failed');
+          }
           return res.json();
         })
         .then(data => {
+          if (!data) return;
           if (data && data.job_id) {
             setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, jobId: data.job_id, status: "DOWNLOADING", stage: "video", video_progress: 0.05 } : item));
             
             // Connect to progress Stream with token query
             try {
               const currentToken = token || localStorage.getItem('aye_token') || '';
-              const streamUrl = `${API_BASE_URL}/api/download/${data.job_id}/stream?token=${encodeURIComponent(currentToken)}`;
+              const tokenParam = currentToken ? `?token=${encodeURIComponent(currentToken)}` : '';
+              const streamUrl = `${API_BASE_URL}/api/download/${data.job_id}/stream${tokenParam}`;
               const eventSource = new EventSource(streamUrl);
               eventSource.addEventListener('progress', (e) => {
                 try {
@@ -933,6 +1043,7 @@ export default function App() {
     });
   };
 
+
   const handleSaveCompleted = () => {
     const completed = downloads.filter(d => d.status === "COMPLETED");
     completed.forEach((d, index) => {
@@ -954,6 +1065,32 @@ export default function App() {
     }));
   };
 
+  const handleStartGuestFromLanding = (url, preferredQuality) => {
+    if (guestQuota.remaining <= 0) {
+      setAuthInitialMode('register');
+      setAuthCustomMessage(
+        lang === 'es'
+          ? 'Has alcanzado el límite de 2 descargas gratuitas. Regístrate en 10 segundos para descargas ilimitadas en 4K.'
+          : 'You have reached the limit of 2 free downloads. Register in 10 seconds for unlimited 4K downloads.'
+      );
+      setShowAuth(true);
+      return;
+    }
+    setIsGuestActive(true);
+    if (url && url.trim()) {
+      if (preferredQuality) {
+        if (preferredQuality === 'mp3' || preferredQuality === 'wav') {
+          setGlobalSettings(prev => ({ ...prev, format: 'audio' }));
+        } else if (preferredQuality === '4k' || preferredQuality === '1080p') {
+          setGlobalSettings(prev => ({ ...prev, format: 'video', quality: preferredQuality }));
+        }
+      }
+      setTimeout(() => {
+        handleAddLink(url);
+      }, 50);
+    }
+  };
+
   if (!token) {
     if (showAuth) {
       return (
@@ -962,7 +1099,12 @@ export default function App() {
           appName="AYE VIDEO DOWNLOADER"
           currentLang={lang}
           onLangChange={setLang}
-          onBack={() => setShowAuth(false)}
+          initialMode={authInitialMode}
+          customMessage={authCustomMessage}
+          onBack={() => {
+            setShowAuth(false);
+            setAuthCustomMessage('');
+          }}
           onLoginSuccess={(data, emailUsed) => {
             const accessToken = data.access_token;
             const userObj = data.user || {};
@@ -972,6 +1114,9 @@ export default function App() {
             setToken(accessToken);
             setUserEmail(userEmailVal);
             setUserName(userNameVal);
+            setShowAuth(false);
+            setIsGuestActive(false);
+            setAuthCustomMessage('');
 
             localStorage.setItem('aye_token', accessToken);
             if (data.refresh_token) {
@@ -985,15 +1130,23 @@ export default function App() {
       );
     }
 
-    return (
-      <LandingPage
-        currentLang={lang}
-        onLangChange={setLang}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        onStartAuth={() => setShowAuth(true)}
-      />
-    );
+    if (!isGuestActive) {
+      return (
+        <LandingPage
+          currentLang={lang}
+          onLangChange={setLang}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          guestQuota={guestQuota}
+          onStartGuestDownload={handleStartGuestFromLanding}
+          onStartAuth={({ mode = 'login', customMessage = '' } = {}) => {
+            setAuthInitialMode(mode);
+            setAuthCustomMessage(customMessage);
+            setShowAuth(true);
+          }}
+        />
+      );
+    }
   }
 
   return (
@@ -1008,7 +1161,7 @@ export default function App() {
             <Icons.Menu />
           </button>
           
-          <div className="brand-badge" onClick={() => { setActiveTab('queue'); setViewState('empty'); }}>
+          <div className="brand-badge" onClick={() => { setActiveTab('queue'); setViewState('empty'); if (!token && downloads.length === 0) setIsGuestActive(false); }}>
             <div className="brand-logo-icon">
               <AyeBrandLogo />
             </div>
@@ -1017,17 +1170,39 @@ export default function App() {
             </div>
           </div>
 
-          <div className={`telemetry-badge ${serverStatus}`} title={lang === 'es' ? 'Estado de la conexión al servidor' : 'Server connection status'}>
-            <div className={`telemetry-dot ${serverStatus}`} />
-            <span>
-              {lang === 'es' 
-                ? (serverStatus === 'online' ? 'SERVIDOR: EN LÍNEA' : serverStatus === 'checking' ? 'VERIFICANDO SERVIDOR...' : 'SERVIDOR: DESCONECTADO')
-                : (serverStatus === 'online' ? 'SERVER STATUS: ONLINE' : serverStatus === 'checking' ? 'CHECKING SERVER...' : 'SERVER STATUS: OFFLINE')}
-            </span>
-          </div>
+          {!token ? (
+            <div className="telemetry-badge online" style={{ borderColor: 'var(--accent-amber)' }}>
+              <div className="telemetry-dot online" style={{ backgroundColor: 'var(--accent-amber)' }} />
+              <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>
+                {lang === 'es' 
+                  ? `CUOTA DE PRUEBA: ${guestQuota.remaining}/2 DISPONIBLES` 
+                  : `TRIAL QUOTA: ${guestQuota.remaining}/2 LEFT`}
+              </span>
+            </div>
+          ) : (
+            <div className={`telemetry-badge ${serverStatus}`} title={lang === 'es' ? 'Estado de la conexión al servidor' : 'Server connection status'}>
+              <div className={`telemetry-dot ${serverStatus}`} />
+              <span>
+                {lang === 'es' 
+                  ? (serverStatus === 'online' ? 'SERVIDOR: EN LÍNEA' : serverStatus === 'checking' ? 'VERIFICANDO SERVIDOR...' : 'SERVIDOR: DESCONECTADO')
+                  : (serverStatus === 'online' ? 'SERVER STATUS: ONLINE' : serverStatus === 'checking' ? 'CHECKING SERVER...' : 'SERVER STATUS: OFFLINE')}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="top-bar-right">
+          {!token && (
+            <button
+              className="header-action-btn"
+              onClick={() => setIsGuestActive(false)}
+              title={lang === 'es' ? 'Volver a la página principal' : 'Back to landing page'}
+              style={{ fontSize: '11px', fontWeight: 700 }}
+            >
+              ← {lang === 'es' ? 'INICIO' : 'LANDING'}
+            </button>
+          )}
+
           <button className="header-action-btn" onClick={toggleLang} title="Language">
             文A {lang.toUpperCase()}
           </button>
@@ -1036,18 +1211,46 @@ export default function App() {
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
           
-          <button 
-            className="profile-avatar-btn" 
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsProfileOpen(!isProfileOpen);
-            }}
-            title={userName || userEmail}
-          >
-            {(userName || userEmail || 'U').charAt(0).toUpperCase()}
-          </button>
+          {!token ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button 
+                className="geometric-btn amber-outline"
+                style={{ padding: '6px 12px', fontSize: '11px', height: '36px' }}
+                onClick={() => {
+                  setAuthInitialMode('login');
+                  setAuthCustomMessage('');
+                  setShowAuth(true);
+                }}
+              >
+                {lang === 'es' ? 'INICIAR SESIÓN' : 'SIGN IN'}
+              </button>
+              <button 
+                className="geometric-btn primary"
+                style={{ padding: '6px 12px', fontSize: '11px', height: '36px' }}
+                onClick={() => {
+                  setAuthInitialMode('register');
+                  setAuthCustomMessage('');
+                  setShowAuth(true);
+                }}
+              >
+                {lang === 'es' ? 'REGÍSTRATE' : 'REGISTER'}
+              </button>
+            </div>
+          ) : (
+            <button 
+              className="profile-avatar-btn" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsProfileOpen(!isProfileOpen);
+              }}
+              title={userName || userEmail}
+            >
+              {(userName || userEmail || 'U').charAt(0).toUpperCase()}
+            </button>
+          )}
         </div>
       </header>
+
 
       {/* Main Content Area */}
       <main className="main-content">
@@ -1775,14 +1978,29 @@ export default function App() {
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>
             AYEAPPS SUITE // 2026
           </div>
-          <button 
-            className="sidebar-nav-item" 
-            style={{ color: 'var(--accent-error)', borderColor: 'var(--accent-error)' }} 
-            onClick={handleLogout}
-          >
-            <span>{lang === 'es' ? 'Cerrar Sesión' : 'Log Out'}</span>
-          </button>
+          {!token ? (
+            <button 
+              className="sidebar-nav-item" 
+              style={{ color: 'var(--accent-amber)', borderColor: 'var(--accent-amber)' }} 
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setAuthInitialMode('login');
+                setShowAuth(true);
+              }}
+            >
+              <span>{lang === 'es' ? 'Iniciar Sesión / Registro' : 'Sign In / Register'}</span>
+            </button>
+          ) : (
+            <button 
+              className="sidebar-nav-item" 
+              style={{ color: 'var(--accent-error)', borderColor: 'var(--accent-error)' }} 
+              onClick={handleLogout}
+            >
+              <span>{lang === 'es' ? 'Cerrar Sesión' : 'Log Out'}</span>
+            </button>
+          )}
         </div>
+
       </aside>
 
       {/* Profile Popover */}

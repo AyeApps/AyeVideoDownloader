@@ -17,6 +17,7 @@ class JobStatus(str, Enum):
 
 class DownloadJob(Document):
     user_id: Indexed(str)
+    ip_hash: Optional[str] = None
     url: str
     format: str
 

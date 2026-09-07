@@ -23,12 +23,20 @@ export default function AuthScreen({
   currentLang = 'es',
   onLangChange,
   onLoginSuccess,
-  onBack
+  onBack,
+  initialMode = 'login',
+  customMessage = ''
 }) {
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [authMode, setAuthMode] = useState(initialMode || 'login');
   const [lang, setLang] = useState(() => currentLang || localStorage.getItem('aye_lang') || localStorage.getItem('preferred_lang') || 'es');
   const [isDark, setIsDark] = useState(true);
   const [serverStatus, setServerStatus] = useState('checking');
+
+  useEffect(() => {
+    if (initialMode) {
+      setAuthMode(initialMode);
+    }
+  }, [initialMode]);
 
   useEffect(() => {
     if (currentLang && currentLang !== lang) {
@@ -439,6 +447,26 @@ export default function AuthScreen({
                 {t.title}
               </h1>
             </div>
+
+            {/* Custom Banner (e.g. Soft-Wall Guest Quota Reached) */}
+            {customMessage && (
+              <div style={{
+                marginBottom: '20px',
+                padding: '14px 16px',
+                backgroundColor: 'rgba(254, 157, 1, 0.12)',
+                border: '1.5px solid var(--accent-amber)',
+                color: 'var(--accent-amber)',
+                fontFamily: 'Courier, JetBrains Mono, monospace',
+                fontSize: '12px',
+                fontWeight: '700',
+                lineHeight: '1.5',
+                textAlign: 'center',
+                boxShadow: '4px 4px 0px 0px rgba(0, 0, 0, 0.8)'
+              }}>
+                <span style={{ marginRight: '8px' }}>⚠️</span>
+                {customMessage}
+              </div>
+            )}
 
             {/* Segmented Mode Selector */}
             <div className="ayetasks-segmented-selector">

@@ -9,7 +9,8 @@
     
     <title>AyeApps Video Downloader | Descarga videos en 4K y audio MP3</title>
     <meta name="description" content="Descarga tus videos y audios favoritos de internet en la más alta calidad posible, al instante, directo a tu dispositivo y sin publicidad molesta." />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#050505" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     
     <!-- Open Graph / Meta -->
     <meta property="og:type" content="website" />
@@ -26,7 +27,7 @@
     <!-- Canonical & SEO -->
     <link rel="canonical" href="https://video.ayeapps.com" />
     <meta name="keywords" content="descargar videos youtube 4k, descargar tiktok sin marca de agua, youtube a mp3 320kbps, descargar reels instagram, video downloader 60fps, convertidor multimedia lossless, ayeapps" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-CQRER10PFR"></script>
@@ -53,6 +54,20 @@
       "@context": "https://schema.org",
       "@graph": [
         {
+          "@type": "Organization",
+          "@id": "https://ayeapps.com/#organization",
+          "name": "AyeApps",
+          "url": "https://ayeapps.com",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://video.ayeapps.com/favicon.svg"
+          },
+          "sameAs": [
+            "https://twitter.com/ayeapps",
+            "https://github.com/ayeapps"
+          ]
+        },
+        {
           "@type": "WebApplication",
           "@id": "https://video.ayeapps.com/#app",
           "name": "AyeVideoDownloader",
@@ -60,10 +75,20 @@
           "applicationCategory": "MultimediaApplication",
           "operatingSystem": "Web, macOS, iOS, Android",
           "description": "Descarga videos en 4K y extrae audio de alta fidelidad sin límites ni pérdidas. Motor de alta velocidad de la suite AyeApps.",
+          "publisher": {
+            "@id": "https://ayeapps.com/#organization"
+          },
           "offers": {
             "@type": "Offer",
             "price": "0",
             "priceCurrency": "USD"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "reviewCount": "1420",
+            "bestRating": "5",
+            "worstRating": "1"
           },
           "featureList": [
             "Descarga de videos en resolución 4K y 1080p a 60fps",

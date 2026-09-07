@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -47,6 +48,14 @@ app.add_middleware(
 
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(api_router, prefix="/api")
+
+@app.get("/", tags=["health"])
+async def root():
+    return {"status": "ok", "app": settings.app_name, "env": settings.app_env}
+
+@app.get("/robots.txt", response_class=PlainTextResponse, tags=["seo"])
+async def robots():
+    return "User-agent: *\nDisallow: /\n"
 
 @app.get("/health", tags=["health"])
 async def health_check():

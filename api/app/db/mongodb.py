@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.download_job import DownloadJob
 from app.models.revoked_token import RevokedToken
+from app.models.guest_download import GuestDownload
 
 logger = logging.getLogger(__name__)
 
@@ -36,4 +37,5 @@ async def init_db():
 
     client = AsyncIOMotorClient(settings.mongodb_url, **client_kwargs)
     database = client[settings.database_name]
-    await init_beanie(database, document_models=[User, DownloadJob, RevokedToken])
+    await init_beanie(database, document_models=[User, DownloadJob, RevokedToken, GuestDownload])
+

@@ -14,13 +14,44 @@ export default function LandingPage({
   onLangChange,
   theme = 'dark',
   onToggleTheme,
-  onStartAuth
+  onStartAuth,
+  guestQuota = { used: 0, remaining: 2, limit: 2 },
+  onStartGuestDownload
 }) {
   const [activeFaq, setActiveFaq] = useState(null);
   const [demoUrl, setDemoUrl] = useState('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   const [demoSelectedFormat, setDemoSelectedFormat] = useState('4k');
 
   const isEs = currentLang === 'es';
+
+  const handleTryAction = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (guestQuota.remaining <= 0) {
+      trackAuthOpened('guest_limit_reached');
+      onStartAuth({
+        mode: 'register',
+        customMessage: isEs
+          ? 'Has alcanzado el límite de 2 descargas gratuitas. Regístrate en 10 segundos para descargas ilimitadas en 4K.'
+          : 'You have reached the limit of 2 free downloads. Register in 10 seconds for unlimited 4K downloads.'
+      });
+      return;
+    }
+
+    if (onStartGuestDownload) {
+      onStartGuestDownload(demoUrl, demoSelectedFormat);
+    } else {
+      onStartAuth();
+    }
+  };
+
+  const handlePasteClipboard = async () => {
+    try {
+      const text = (await navigator.clipboard.readText() || '').trim();
+      if (text) {
+        setDemoUrl(text);
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     trackPageView('/', isEs ? 'AyeApps Video Downloader | Inicio' : 'AyeApps Video Downloader | Home');
@@ -208,8 +239,8 @@ export default function LandingPage({
           </p>
 
           <div className="hero-cta-group">
-            <button className="primary-cta-btn bracket-corners" onClick={() => { trackAuthOpened('hero_cta'); onStartAuth(); }}>
-              <span>{t.ctaPrimary}</span>
+            <button className="primary-cta-btn bracket-corners" onClick={handleTryAction}>
+              <span>{guestQuota.remaining > 0 ? t.ctaPrimary : t.loginBtn}</span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="square"/>
               </svg>
@@ -230,7 +261,11 @@ export default function LandingPage({
               </div>
               <div className="console-telemetry">
                 <span className="telemetry-live-pulse"></span>
-                <span className="telemetry-text">{t.engineStatus}</span>
+                <span className="telemetry-text">
+                  {guestQuota.remaining > 0
+                    ? (isEs ? `PRUEBA GRATUITA: ${guestQuota.remaining}/2 DISPONIBLES SIN CUENTA` : `FREE TRIAL: ${guestQuota.remaining}/2 AVAILABLE WITHOUT ACCOUNT`)
+                    : (isEs ? 'LÍMITE GRATUITO ALCANZADO (2/2) — INICIA SESIÓN' : 'FREE LIMIT REACHED (2/2) — SIGN IN')}
+                </span>
               </div>
             </div>
 
@@ -246,11 +281,30 @@ export default function LandingPage({
                   type="text"
                   value={demoUrl}
                   onChange={(e) => setDemoUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTryAction(e)}
                   placeholder={t.demoInputPlaceholder}
                   className="console-input"
-                  readOnly
                 />
-                <button className="console-inspect-btn" onClick={onStartAuth}>
+                <button 
+                  type="button"
+                  onClick={handlePasteClipboard} 
+                  title={isEs ? 'Pegar del portapapeles' : 'Paste from clipboard'}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-muted)',
+                    padding: '8px 12px',
+                    marginRight: '6px',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase'
+                  }}
+                >
+                  {isEs ? 'PEGAR' : 'PASTE'}
+                </button>
+                <button className="console-inspect-btn" onClick={handleTryAction}>
                   {t.demoInspectBtn}
                 </button>
               </div>
@@ -297,14 +351,23 @@ export default function LandingPage({
                 </div>
 
                 <div className="console-cta-footer">
-                  <span className="footer-prompt">{t.demoActionPrompt}</span>
-                  <button className="footer-auth-action bracket-corners" onClick={() => { trackAuthOpened('console_cta'); onStartAuth(); }}>
-                    {t.demoActionBtn} →
+                  <span className="footer-prompt">
+                    {guestQuota.remaining > 0
+                      ? (isEs 
+                          ? `Te quedan ${guestQuota.remaining} de 2 descargas de prueba gratuita sin cuenta`
+                          : `You have ${guestQuota.remaining} of 2 free trial downloads left without an account`)
+                      : (isEs 
+                          ? 'Has alcanzado el límite de 2 descargas gratuitas'
+                          : 'You have reached the 2 free downloads limit')}
+                  </span>
+                  <button className="footer-auth-action bracket-corners" onClick={handleTryAction}>
+                    {guestQuota.remaining > 0 ? t.demoActionBtn : t.loginBtn} →
                   </button>
                 </div>
               </div>
             </div>
           </div>
+
         </section>
 
         {/* SUPPORTED PLATFORMS */}
@@ -501,9 +564,10 @@ export default function LandingPage({
             <div className="bottom-cta-content">
               <h2 className="bottom-cta-title">{t.ctaBannerTitle}</h2>
               <p className="bottom-cta-sub">{t.ctaBannerSub}</p>
-              <button className="bottom-cta-btn bracket-corners" onClick={() => { trackAuthOpened('bottom_cta'); onStartAuth(); }}>
-                {t.ctaBannerBtn}
+              <button className="bottom-cta-btn bracket-corners" onClick={handleTryAction}>
+                {guestQuota.remaining > 0 ? (isEs ? 'PROBAR SIN CUENTA (2 GRATIS)' : 'TRY WITHOUT ACCOUNT (2 FREE)') : t.ctaBannerBtn}
               </button>
+
             </div>
           </div>
         </section>
