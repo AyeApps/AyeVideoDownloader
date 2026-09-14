@@ -45,10 +45,6 @@ Web browser usage on desktop and mobile (`https://video.ayeapps.com`). Often use
 
 - Functional FastAPI backend with `yt-dlp` in `/api`.
 - Client-side React 19 downloader app in `/frontend/src/App.jsx`.
-- Shared Atelier authentication screen in `/frontend/src/components/AuthScreen.jsx`.
-- Interactive dot matrix canvas in `/frontend/src/components/InteractiveDots.jsx`.
-- macOS native SwiftUI client in `/AyeVIdeoDownloader`.
-
 ## Product Principles
 
 1. Zero Bloat & Zero Deception: No third-party ads, no deceptive fake download buttons.
