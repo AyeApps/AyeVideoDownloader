@@ -145,8 +145,9 @@ export default function App() {
      window.location.hostname === '[::1]');
 
   const API_BASE_URL =
+    import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_BFF_URL ||
-    (isWebLocal ? 'http://localhost:8002' : 'https://back-ayvddw.ayeapps.com');
+    (isWebLocal ? 'http://localhost:8002' : 'https://api-ayvddw.ayeapps.com');
 
   const AUTH_API_URL =
     import.meta.env.VITE_AUTH_API_URL ||
@@ -698,7 +699,7 @@ export default function App() {
     }, 180);
 
     try {
-      const res = await authFetch(`${API_BASE_URL}/api/formats`, {
+      const res = await authFetch(`${API_BASE_URL}/api/v1/formats/fetch`, {
         method: 'POST',
         body: JSON.stringify({ url: rawUrl })
       });
@@ -825,7 +826,7 @@ export default function App() {
       const fileName = fallbackName || `video_${jobId}.${fileType === 'audio' ? 'mp3' : 'mp4'}`;
       const currentToken = token || localStorage.getItem('aye_token') || '';
       const tokenQuery = currentToken ? `?token=${encodeURIComponent(currentToken)}` : '';
-      const downloadUrl = `${API_BASE_URL}/api/download/${jobId}/file${tokenQuery}`;
+      const downloadUrl = `${API_BASE_URL}/api/v1/downloads/${jobId}/file${tokenQuery}`;
       
       const a = document.createElement('a');
       a.href = downloadUrl;
@@ -853,7 +854,7 @@ export default function App() {
 
   const pollDownloadStatus = async (id, jobId) => {
     try {
-      const res = await authFetch(`${API_BASE_URL}/api/download/${jobId}`);
+      const res = await authFetch(`${API_BASE_URL}/api/v1/downloads/${jobId}`);
       if (res.status === 401 && token) { handleLogout(); return; }
       const data = await res.json();
       
@@ -967,7 +968,7 @@ export default function App() {
 
         setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, status: "STARTING...", stage: "video", video_progress: 0, audio_progress: 0 } : item));
         
-        authFetch(`${API_BASE_URL}/api/download`, {
+        authFetch(`${API_BASE_URL}/api/v1/downloads/`, {
           method: 'POST',
           body: JSON.stringify({
             url: d.url,
@@ -1013,7 +1014,7 @@ export default function App() {
             try {
               const currentToken = token || localStorage.getItem('aye_token') || '';
               const tokenParam = currentToken ? `?token=${encodeURIComponent(currentToken)}` : '';
-              const streamUrl = `${API_BASE_URL}/api/download/${data.job_id}/stream${tokenParam}`;
+              const streamUrl = `${API_BASE_URL}/api/v1/downloads/${data.job_id}/stream${tokenParam}`;
               const eventSource = new EventSource(streamUrl);
               eventSource.addEventListener('progress', (e) => {
                 try {
