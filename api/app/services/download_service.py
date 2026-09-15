@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class DownloadService:
     @staticmethod
     async def start_download(job: DownloadJob) -> None:
-        temp_dir = Path(settings.temp_dir) / str(job.id)
+        temp_dir = Path(settings.TEMP_DIR) / str(job.id)
         temp_dir.mkdir(parents=True, exist_ok=True)
         
         args = DownloadService._build_args(job, temp_dir)
@@ -58,7 +58,7 @@ class DownloadService:
             job.audio_progress = 1.0
             job.progress = 1.0
             job.progress_text = "Completado"
-            job.expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.download_ttl_minutes)
+            job.expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.DOWNLOAD_TTL_MINUTES)
             
             # Find the generated file
             for file_path in temp_dir.iterdir():

@@ -43,7 +43,7 @@ async def get_current_user(
 
         payload = jwt.decode(
             auth_token,
-            settings.jwt_secret_key,
+            settings.JWT_SECRET_KEY,
             algorithms=[ALGORITHM],
             options={"verify_aud": False}
         )

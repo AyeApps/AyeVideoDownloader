@@ -12,11 +12,11 @@ from app.models.guest_download import GuestDownload
 logger = logging.getLogger(__name__)
 
 async def init_db():
-    cert_path = settings.mongodb_cert_path
-    if settings.mongodb_cert_b64 and settings.mongodb_cert_b64.strip():
+    cert_path = settings.MONGODB_CERT_PATH
+    if settings.MONGODB_CERT_B64 and settings.MONGODB_CERT_B64.strip():
         temp_cert = "/tmp/aye_video_cert.pem"
         try:
-            cert_bytes = base64.b64decode(settings.mongodb_cert_b64.strip())
+            cert_bytes = base64.b64decode(settings.MONGODB_CERT_B64.strip())
             with open(temp_cert, "wb") as f:
                 f.write(cert_bytes)
             cert_path = temp_cert
@@ -35,7 +35,7 @@ async def init_db():
         client_kwargs["authSource"] = "$external"
         logger.info(f"Connecting to MongoDB with X.509 Certificate ({cert_path})...")
 
-    client = AsyncIOMotorClient(settings.mongodb_url, **client_kwargs)
-    database = client[settings.database_name]
+    client = AsyncIOMotorClient(settings.MONGODB_URL, **client_kwargs)
+    database = client[settings.DATABASE_NAME]
     await init_beanie(database, document_models=[User, DownloadJob, RevokedToken, GuestDownload])
 

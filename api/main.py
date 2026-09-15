@@ -26,11 +26,11 @@ async def lifespan(app: FastAPI):
     logger.info("Closing database connection...")
 
 app = FastAPI(
-    title=settings.app_name,
+    title=settings.APP_NAME,
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
 
 app.state.limiter = limiter
@@ -39,7 +39,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins if isinstance(settings.allowed_origins, list) else [settings.allowed_origins],
+    allow_origins=settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS],
     allow_origin_regex=r"^https://.*\.ayeapps\.com$",
     allow_credentials=True,
     allow_methods=["*"],
@@ -51,7 +51,7 @@ app.include_router(api_router, prefix="/api")
 
 @app.get("/", tags=["health"])
 async def root():
-    return {"status": "ok", "app": settings.app_name, "env": settings.app_env}
+    return {"status": "ok", "app": settings.APP_NAME, "env": settings.APP_ENV}
 
 @app.get("/robots.txt", response_class=PlainTextResponse, tags=["seo"])
 async def robots():
@@ -59,4 +59,4 @@ async def robots():
 
 @app.get("/health", tags=["health"])
 async def health_check():
-    return {"status": "ok", "env": settings.app_env}
+    return {"status": "ok", "env": settings.APP_ENV}
