@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 import yt_dlp
 from yt_dlp.utils import DownloadCancelled
+from bson import ObjectId
 
 from app.models.download_job import DownloadJob, JobStatus
 from beanie.operators import In
@@ -69,6 +70,132 @@ async def fail_if_stale(job: DownloadJob) -> DownloadJob:
         )
 
     return job
+
+
+def remove_job_temp_dir_sync(job_id_or_folder_name: str) -> bool:
+    """Borra de forma segura y síncrona la subcarpeta de un job dentro de settings.TEMP_DIR."""
+    try:
+        temp_dir_base = Path(settings.TEMP_DIR).resolve()
+        target_dir = (Path(settings.TEMP_DIR) / str(job_id_or_folder_name)).resolve()
+
+        if target_dir == temp_dir_base:
+            logger.warning("Intento de borrado de la raíz de TEMP_DIR bloqueado: %s", target_dir)
+            return False
+
+        if not target_dir.is_relative_to(temp_dir_base):
+            logger.warning("Intento de borrado fuera de TEMP_DIR bloqueado: %s", target_dir)
+            return False
+
+        if not target_dir.exists() or not target_dir.is_dir():
+            return False
+
+        shutil.rmtree(target_dir, ignore_errors=True)
+        return True
+    except Exception:
+        logger.exception("Error borrando subcarpeta temporal %s", job_id_or_folder_name)
+        return False
+
+
+async def remove_job_temp_dir(job_id_or_folder_name: str) -> bool:
+    """Borra de forma segura y asíncrona la subcarpeta de un job dentro de settings.TEMP_DIR."""
+    return await asyncio.to_thread(remove_job_temp_dir_sync, job_id_or_folder_name)
+
+
+async def cleanup_downloads() -> int:
+    """Realiza dos pasadas de limpieza sobre settings.TEMP_DIR:
+    1. Vencidos: busca jobs DONE con expires_at anterior a ahora (UTC), borra su subcarpeta
+       y actualiza el job de forma condicional a EXPIRED.
+    2. Huérfanos: recorre las subcarpetas directas de settings.TEMP_DIR ignorando jobs
+       activos en memoria. Si no es un id válido, no existe o no es DONE con expires_at
+       en el futuro, borra la subcarpeta.
+    Devuelve el número total de carpetas borradas de disco.
+    """
+    deleted_count = 0
+    now = datetime.now(timezone.utc)
+
+    # 1. Pasada de vencidos
+    try:
+        expired_jobs = await DownloadJob.find(
+            DownloadJob.status == JobStatus.DONE,
+            DownloadJob.expires_at < now,
+        ).to_list()
+    except Exception:
+        logger.exception("Error consultando jobs vencidos en la base de datos")
+        expired_jobs = []
+
+    for job in expired_jobs:
+        try:
+            if await remove_job_temp_dir(str(job.id)):
+                deleted_count += 1
+
+            await DownloadJob.find_one(
+                DownloadJob.id == job.id,
+                DownloadJob.status == JobStatus.DONE,
+            ).update({
+                "$set": {
+                    "status": JobStatus.EXPIRED,
+                    "updated_at": now,
+                }
+            })
+        except Exception:
+            logger.exception("Error limpiando descarga vencida %s", job.id)
+
+    # 2. Pasada de huérfanos
+    temp_dir_path = Path(settings.TEMP_DIR)
+    if temp_dir_path.exists() and temp_dir_path.is_dir():
+        try:
+            subdirs = await asyncio.to_thread(
+                lambda: [p.name for p in temp_dir_path.iterdir() if p.is_dir()]
+            )
+        except Exception:
+            logger.exception("Error listando subcarpetas de TEMP_DIR (%s)", temp_dir_path)
+            subdirs = []
+
+        for folder_name in subdirs:
+            try:
+                # Sáltate las que correspondan a un job activo en memoria
+                if get_job_state(folder_name) is not None:
+                    continue
+
+                should_delete = False
+                if not ObjectId.is_valid(folder_name):
+                    should_delete = True
+                else:
+                    job = await DownloadJob.get(folder_name)
+                    if job is None:
+                        should_delete = True
+                    else:
+                        is_valid_done = (
+                            job.status == JobStatus.DONE
+                            and job.expires_at is not None
+                            and _to_utc(job.expires_at) > now
+                        )
+                        if not is_valid_done:
+                            should_delete = True
+
+                if should_delete:
+                    if await remove_job_temp_dir(folder_name):
+                        deleted_count += 1
+            except Exception:
+                logger.exception("Error procesando carpeta huérfana %s", folder_name)
+
+    return deleted_count
+
+
+async def cleanup_loop() -> None:
+    """Bucle periódico que ejecuta la limpieza de descargas al arrancar y cada CLEANUP_INTERVAL_SECONDS."""
+    try:
+        while True:
+            try:
+                deleted_count = await cleanup_downloads()
+                if deleted_count > 0:
+                    logger.info("Limpieza periódica de temporales: %d carpeta(s) eliminada(s)", deleted_count)
+            except Exception:
+                logger.exception("Error no controlado durante la vuelta de limpieza periódica")
+
+            await asyncio.sleep(settings.CLEANUP_INTERVAL_SECONDS)
+    except asyncio.CancelledError:
+        pass
 
 
 def _make_download_hooks(job_id_str: str, is_audio: bool):
@@ -189,6 +316,9 @@ def _download_from_info_sync(
 
 class DownloadService:
     fail_if_stale = staticmethod(fail_if_stale)
+    remove_job_temp_dir = staticmethod(remove_job_temp_dir)
+    cleanup_downloads = staticmethod(cleanup_downloads)
+    cleanup_loop = staticmethod(cleanup_loop)
 
     @staticmethod
     async def start_download(job: DownloadJob) -> None:

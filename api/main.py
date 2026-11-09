@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +14,7 @@ from app.db.mongodb import init_db
 from app.api.v1.router import api_router
 from app.core.logging import get_logger
 from app.models.download_job import DownloadJob, JobStatus
-from app.services.download_service import fail_if_stale
+from app.services.download_service import fail_if_stale, cleanup_loop
 from beanie.operators import In
 
 logger = get_logger(__name__)
@@ -33,7 +34,17 @@ async def lifespan(app: FastAPI):
             await fail_if_stale(job)
     except Exception:
         logger.exception("Error durante el barrido de trabajos huérfanos al iniciar")
-    yield
+
+    cleanup_task = asyncio.create_task(cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+
     logger.info("Closing database connection...")
 
 app = FastAPI(

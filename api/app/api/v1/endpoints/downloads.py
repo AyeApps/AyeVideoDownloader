@@ -10,7 +10,8 @@ from app.core.deps import get_optional_current_user
 from app.core.security import create_download_ticket, verify_download_ticket
 from app.core.logging import get_logger
 from app.services.format_service import FormatService
-from app.services.download_service import DownloadService, fail_if_stale
+from app.services.download_service import DownloadService, fail_if_stale, remove_job_temp_dir
+from beanie.operators import In
 from app.services.ytdlp_engine import (
     count_active_jobs,
     count_active_jobs_for_user,
@@ -422,9 +423,40 @@ async def delete_download(
     job = await DownloadJob.get(job_id)
     if not job or not check_job_access(job, current_user, request):
         raise HTTPException(404, "Not found")
-    
+
     cancel_job(str(job.id))
-    job.status = JobStatus.CANCELLED
-    job.updated_at = datetime.now(timezone.utc)
-    await job.save()
+    now = datetime.now(timezone.utc)
+
+    active_statuses = [
+        JobStatus.PENDING,
+        JobStatus.FETCHING,
+        JobStatus.QUEUED,
+        JobStatus.RUNNING,
+        JobStatus.MERGING,
+    ]
+
+    res = await DownloadJob.find_one(
+        DownloadJob.id == job.id,
+        In("status", active_statuses),
+    ).update({
+        "$set": {
+            "status": JobStatus.CANCELLED,
+            "updated_at": now,
+        }
+    })
+
+    if not (res and res.modified_count > 0):
+        current_job = await DownloadJob.get(job.id)
+        if current_job and current_job.status == JobStatus.DONE:
+            await remove_job_temp_dir(str(job.id))
+            await DownloadJob.find_one(
+                DownloadJob.id == job.id,
+                DownloadJob.status == JobStatus.DONE,
+            ).update({
+                "$set": {
+                    "status": JobStatus.CANCELLED,
+                    "file_path": "",
+                    "updated_at": now,
+                }
+            })
 
