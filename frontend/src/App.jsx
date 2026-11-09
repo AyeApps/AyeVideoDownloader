@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './index.css';
 import AuthScreen from './components/AuthScreen';
 import './components/AuthScreen.css';
@@ -101,6 +101,16 @@ const detectPlatform = (url) => {
 export default function App() {
   const [linkInput, setLinkInput] = useState("");
   const [downloads, setDownloads] = useState([]);
+  const pollTimersRef = useRef(new Map());
+  const downloadsRef = useRef(downloads);
+  downloadsRef.current = downloads;
+
+  useEffect(() => {
+    return () => {
+      pollTimersRef.current.forEach(timerId => clearTimeout(timerId));
+      pollTimersRef.current.clear();
+    };
+  }, []);
   const [history, setHistory] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('aye_history') || '[]');
@@ -421,6 +431,17 @@ export default function App() {
     return res;
   };
 
+  const getDownloadTicket = async (jobId, scope) => {
+    const res = await authFetch(`${API_BASE_URL}/api/v1/downloads/${jobId}/ticket?scope=${encodeURIComponent(scope)}`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to get download ticket: ${res.status}`);
+    }
+    const data = await res.json();
+    return data.ticket;
+  };
+
   const handleDeleteAccount = async () => {
     const confirmMessage = lang === 'es'
       ? '¿Estás completamente seguro de que deseas eliminar permanentemente tu cuenta de AyeApps y todos sus datos asociados? Esta acción NO se puede deshacer.'
@@ -463,7 +484,12 @@ export default function App() {
     if (d.status === "READY") return l === 'es' ? "LISTO PARA DESCARGA" : "READY TO DOWNLOAD";
     if (d.status === "WAITING") return l === 'es' ? "EN ESPERA" : "WAITING";
     if (d.status === "STARTING...") return l === 'es' ? "INICIANDO..." : "STARTING...";
-    if (d.status === "ERROR" || d.status === "FAILED") return l === 'es' ? "ERROR" : "ERROR";
+    if (d.status === "ERROR" || d.status === "FAILED") {
+      if (d.errorType === 'expired') {
+        return l === 'es' ? 'El archivo ha caducado' : 'The file has expired';
+      }
+      return d.errorMessage || (l === 'es' ? "ERROR" : "ERROR");
+    }
     
     if (d.jobId && downloadingIds.has(d.jobId)) {
       return l === 'es' ? "TRANSFIRIENDO AL NAVEGADOR..." : "TRANSFERRING TO BROWSER...";
@@ -471,6 +497,15 @@ export default function App() {
 
     if (d.status === "COMPLETED" || d.status === "DONE" || d.status === "done") return l === 'es' ? "COMPLETADO" : "COMPLETED";
     
+    const statusLower = (d.status || '').toLowerCase();
+    if (statusLower === 'queued') {
+      const qPos = typeof d.queue_position === 'number' ? d.queue_position : parseInt(d.queue_position, 10);
+      if (Number.isFinite(qPos) && qPos > 0) {
+        return l === 'es' ? `EN COLA · ${qPos} POR DELANTE` : `QUEUED · ${qPos} AHEAD`;
+      }
+      return l === 'es' ? 'EN COLA' : 'QUEUED';
+    }
+
     const stage = d.stage || 'video';
     const textLower = (d.progress_text || d.status || '').toLowerCase();
     
@@ -778,6 +813,28 @@ export default function App() {
   const handleAddMore = () => handleAddLink(linkInput);
 
   const removeDownload = (id) => {
+    const item = (downloadsRef.current || downloads).find(d => d.id === id);
+    if (item && item.jobId) {
+      const s = (item.status || '').toLowerCase();
+      if (!['done', 'failed', 'error', 'cancelled', 'expired', 'completed'].includes(s)) {
+        authFetch(`${API_BASE_URL}/api/v1/downloads/${item.jobId}`, {
+          method: 'DELETE'
+        })
+          .then(res => {
+            if (!res.ok) {
+              console.warn(`DELETE /api/v1/downloads/${item.jobId} returned ${res.status}`);
+            }
+          })
+          .catch(err => {
+            console.warn('Failed to cancel download on server:', err);
+          });
+      }
+    }
+
+    if (pollTimersRef.current.has(id)) {
+      clearTimeout(pollTimersRef.current.get(id));
+      pollTimersRef.current.delete(id);
+    }
     const newDownloads = downloads.filter(d => d.id !== id);
     setDownloads(newDownloads);
     if (newDownloads.length === 0) setViewState("empty");
@@ -820,13 +877,17 @@ export default function App() {
     return `${safeTitle}${tag}.${ext}`;
   };
 
-  const triggerFileDownload = (jobId, fallbackName, fileType) => {
+  const triggerFileDownload = async (jobId, fallbackName, fileType) => {
     setDownloadingIds(prev => new Set([...prev, jobId]));
     try {
       const fileName = fallbackName || `video_${jobId}.${fileType === 'audio' ? 'mp3' : 'mp4'}`;
-      const currentToken = token || localStorage.getItem('aye_token') || '';
-      const tokenQuery = currentToken ? `?token=${encodeURIComponent(currentToken)}` : '';
-      const downloadUrl = `${API_BASE_URL}/api/v1/downloads/${jobId}/file${tokenQuery}`;
+      const hasSession = Boolean(token || localStorage.getItem('aye_token'));
+      let ticketQuery = '';
+      if (hasSession) {
+        const ticket = await getDownloadTicket(jobId, 'file');
+        ticketQuery = `?ticket=${encodeURIComponent(ticket)}`;
+      }
+      const downloadUrl = `${API_BASE_URL}/api/v1/downloads/${jobId}/file${ticketQuery}`;
       
       const a = document.createElement('a');
       a.href = downloadUrl;
@@ -852,14 +913,86 @@ export default function App() {
     }
   };
 
-  const pollDownloadStatus = async (id, jobId) => {
+  const pollDownloadStatus = async (id, jobId, startTime = Date.now(), failureCount = 0) => {
+    const clearPollTimer = () => {
+      if (pollTimersRef.current.has(id)) {
+        clearTimeout(pollTimersRef.current.get(id));
+        pollTimersRef.current.delete(id);
+      }
+    };
+
+    const setPollTimer = (delay, nextFailures) => {
+      clearPollTimer();
+      const timer = setTimeout(() => {
+        pollTimersRef.current.delete(id);
+        pollDownloadStatus(id, jobId, startTime, nextFailures);
+      }, delay);
+      pollTimersRef.current.set(id, timer);
+    };
+
+    const handleTransientFailure = () => {
+      const nextFailures = failureCount + 1;
+      if (nextFailures >= 8) {
+        clearPollTimer();
+        const currentItem = (downloadsRef.current || downloads).find(d => d.id === id);
+        trackDownloadError({
+          platform: detectPlatform(currentItem?.url || ''),
+          error: 'Max retry attempts exceeded (8 consecutive failures)'
+        });
+        setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
+        return;
+      }
+      const delay = Math.min(30000, 3000 * Math.pow(2, failureCount));
+      setPollTimer(delay, nextFailures);
+    };
+
+    // Límite de 60 minutos desde la primera consulta
+    if (Date.now() - startTime >= 60 * 60 * 1000) {
+      clearPollTimer();
+      const currentItem = (downloadsRef.current || downloads).find(d => d.id === id);
+      trackDownloadError({
+        platform: detectPlatform(currentItem?.url || ''),
+        error: 'Download polling timed out after 60 minutes'
+      });
+      setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
+      return;
+    }
+
+    if (downloadsRef.current && !downloadsRef.current.some(d => d.id === id)) {
+      clearPollTimer();
+      return;
+    }
+
     try {
       const res = await authFetch(`${API_BASE_URL}/api/v1/downloads/${jobId}`);
-      if (res.status === 401 && token) { handleLogout(); return; }
+      if (res.status === 401 && token) {
+        clearPollTimer();
+        handleLogout();
+        return;
+      }
+
+      if (res.status === 404 || res.status === 410) {
+        clearPollTimer();
+        const currentItem = (downloadsRef.current || downloads).find(d => d.id === id);
+        trackDownloadError({
+          platform: detectPlatform(currentItem?.url || ''),
+          error: `HTTP ${res.status}`
+        });
+        setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
+        return;
+      }
+
+      if (!res.ok) {
+        handleTransientFailure();
+        return;
+      }
+
       const data = await res.json();
-      
-      if (data.status === 'done' || data.status === 'DONE') {
-        const currentItem = downloads.find(d => d.id === id);
+      const rawStatus = (data && data.status) ? String(data.status).toLowerCase().trim() : '';
+
+      if (rawStatus === 'done') {
+        clearPollTimer();
+        const currentItem = (downloadsRef.current || downloads).find(d => d.id === id);
         const builtName = buildFileName(currentItem || { name: data.title, type: 'video' });
         
         setDownloads(prev => prev.map(d => {
@@ -919,13 +1052,27 @@ export default function App() {
         }
 
         triggerFileDownload(jobId, builtName, currentItem?.type || 'video');
-      } else if (data.status === 'error' || data.status === 'FAILED') {
-        const currentItem = downloads.find(d => d.id === id);
+      } else if (['failed', 'error', 'cancelled', 'expired'].includes(rawStatus)) {
+        clearPollTimer();
+        const currentItem = (downloadsRef.current || downloads).find(d => d.id === id);
+        const isExpired = rawStatus === 'expired';
+        const expiredMsg = lang === 'es' ? 'El archivo ha caducado' : 'The file has expired';
+        
         trackDownloadError({
           platform: detectPlatform(currentItem?.url || ''),
-          error: data.error || 'Download failed'
+          error: isExpired ? 'File expired' : (data.error || `Download ${rawStatus}`)
         });
-        setDownloads(prev => prev.map(d => d.id === id ? { ...d, status: "ERROR" } : d));
+
+        setDownloads(prev => prev.map(d => {
+          if (d.id !== id) return d;
+          return {
+            ...d,
+            status: "ERROR",
+            error: isExpired ? expiredMsg : (data.error || 'Download failed'),
+            errorMessage: isExpired ? expiredMsg : undefined,
+            errorType: isExpired ? 'expired' : undefined
+          };
+        }));
       } else {
         setDownloads(prev => prev.map(d => {
           if (d.id !== id) return d;
@@ -936,13 +1083,15 @@ export default function App() {
             progress: data.progress !== undefined ? data.progress : d.progress,
             video_progress: data.video_progress !== undefined ? data.video_progress : (d.video_progress || 0),
             audio_progress: data.audio_progress !== undefined ? data.audio_progress : (d.audio_progress || 0),
-            progress_text: data.progress_text || d.progress_text
+            progress_text: data.progress_text || d.progress_text,
+            queue_position: data.queue_position !== undefined ? data.queue_position : d.queue_position
           };
         }));
-        setTimeout(() => pollDownloadStatus(id, jobId), 1500);
+        const normalInterval = (Date.now() - startTime < 120000) ? 1500 : 5000;
+        setPollTimer(normalInterval, 0);
       }
     } catch {
-      setTimeout(() => pollDownloadStatus(id, jobId), 3000);
+      handleTransientFailure();
     }
   };
 
@@ -1000,21 +1149,39 @@ export default function App() {
               return;
             }
           }
+          if (res.status === 503 || res.status === 429) {
+            const errData = await res.json().catch(() => ({}));
+            const message = (errData.detail && typeof errData.detail === 'object' ? errData.detail.message : errData.detail) || errData.message;
+            if (message) {
+              setDownloads(prev => prev.map(item => item.id === d.id ? {
+                ...item,
+                status: "ERROR",
+                error: message,
+                errorMessage: message
+              } : item));
+              return;
+            }
+          }
           if (!res.ok) {
             throw new Error('Download failed');
           }
           return res.json();
         })
-        .then(data => {
+        .then(async data => {
           if (!data) return;
           if (data && data.job_id) {
             setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, jobId: data.job_id, status: "DOWNLOADING", stage: "video", video_progress: 0.05 } : item));
             
-            // Connect to progress Stream with token query
+            // Connect to progress Stream with ticket query
+            const downloadStartTime = Date.now();
             try {
-              const currentToken = token || localStorage.getItem('aye_token') || '';
-              const tokenParam = currentToken ? `?token=${encodeURIComponent(currentToken)}` : '';
-              const streamUrl = `${API_BASE_URL}/api/v1/downloads/${data.job_id}/stream${tokenParam}`;
+              const hasSession = Boolean(token || localStorage.getItem('aye_token'));
+              let ticketParam = '';
+              if (hasSession) {
+                const ticket = await getDownloadTicket(data.job_id, 'stream');
+                ticketParam = `?ticket=${encodeURIComponent(ticket)}`;
+              }
+              const streamUrl = `${API_BASE_URL}/api/v1/downloads/${data.job_id}/stream${ticketParam}`;
               const eventSource = new EventSource(streamUrl);
               eventSource.addEventListener('progress', (e) => {
                 try {
@@ -1028,7 +1195,8 @@ export default function App() {
                       progress: pData.progress !== undefined ? pData.progress : item.progress,
                       video_progress: pData.video_progress !== undefined ? pData.video_progress : (item.video_progress || 0),
                       audio_progress: pData.audio_progress !== undefined ? pData.audio_progress : (item.audio_progress || 0),
-                      progress_text: pData.progress_text || item.progress_text
+                      progress_text: pData.progress_text || item.progress_text,
+                      queue_position: pData.queue_position !== undefined ? pData.queue_position : item.queue_position
                     };
                   }));
                 } catch {
@@ -1037,14 +1205,14 @@ export default function App() {
               });
               eventSource.addEventListener('done', () => {
                 eventSource.close();
-                pollDownloadStatus(d.id, data.job_id);
+                pollDownloadStatus(d.id, data.job_id, downloadStartTime, 0);
               });
               eventSource.addEventListener('error', () => {
                 eventSource.close();
-                pollDownloadStatus(d.id, data.job_id);
+                pollDownloadStatus(d.id, data.job_id, downloadStartTime, 0);
               });
             } catch {
-              pollDownloadStatus(d.id, data.job_id);
+              pollDownloadStatus(d.id, data.job_id, downloadStartTime, 0);
             }
           } else {
             setDownloads(prev => prev.map(item => item.id === d.id ? { ...item, status: "ERROR" } : item));
