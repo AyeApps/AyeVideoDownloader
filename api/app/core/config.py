@@ -40,8 +40,21 @@ class Settings(BaseSettings):
     # 🚀 2. ESPECÍFICAS DEL SERVICIO
     # ==========================================
     DEBUG: bool = False
-    MAX_CONCURRENT_DOWNLOADS: int = 3
+    DOWNLOAD_TICKET_TTL_SECONDS: int = 120
+    MAX_CONCURRENT_DOWNLOADS: int = 1
+    MAX_CONCURRENT_EXTRACTIONS: int = 1
+    MAX_QUEUED_JOBS: int = 20
+    MAX_ACTIVE_JOBS_PER_USER: int = 10
+    INFO_CACHE_TTL_SECONDS: int = 600
+    INFO_CACHE_MAX_ITEMS: int = 8
+    PROGRESS_FLUSH_SECONDS: int = 2
+    CLEANUP_INTERVAL_SECONDS: int = 300
+    MIN_FREE_DISK_MB: int = 1024
     DOWNLOAD_TTL_MINUTES: int = 30
+    JOB_HEARTBEAT_SECONDS: int = 30
+    JOB_STALE_SECONDS: int = 180
+    JOB_MAX_RUNTIME_MINUTES: int = 60
+    STREAM_MAX_SECONDS: int = 3600
     TEMP_DIR: str = "/tmp/ayevideo_downloads"
     MAX_FILE_SIZE_MB: int = 2048
     RATE_LIMIT_LOGIN: str = "5/minute"

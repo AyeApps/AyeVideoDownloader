@@ -1,13 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
-from app.schemas.downloads import CreateDownloadRequest, DownloadJobResponse
+from app.schemas.downloads import CreateDownloadRequest, DownloadJobResponse, DownloadTicketResponse
 from app.models.download_job import DownloadJob, JobStatus
 from app.models.guest_download import GuestDownload
 from app.models.user import User
+from app.core.config import settings
 from app.core.deps import get_optional_current_user
+from app.core.security import create_download_ticket, verify_download_ticket
+from app.core.logging import get_logger
 from app.services.format_service import FormatService
-from app.services.download_service import DownloadService
+from app.services.download_service import DownloadService, fail_if_stale
+from app.services.ytdlp_engine import (
+    count_active_jobs,
+    count_active_jobs_for_user,
+    register_job,
+    cancel_job,
+    get_queue_position,
+    get_job_state,
+)
 from app.schemas.pagination import PaginatedResponse
 from pathlib import Path
 from typing import Optional
@@ -18,6 +29,7 @@ import asyncio
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+logger = get_logger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(tags=["downloads"])
 
@@ -94,6 +106,25 @@ async def create_download(
     else:
         user_id = str(current_user.id)
 
+    # Comprobación de límites de cola del servidor y de usuario activo
+    if count_active_jobs() >= settings.MAX_QUEUED_JOBS:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "SERVER_BUSY",
+                "message": "El servidor está ocupado, inténtalo en unos minutos."
+            }
+        )
+
+    if count_active_jobs_for_user(user_id) >= settings.MAX_ACTIVE_JOBS_PER_USER:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "TOO_MANY_ACTIVE",
+                "message": "Tienes demasiadas descargas en curso. Espera a que terminen algunas."
+            }
+        )
+
     is_audio = body.format in ("audioMP3", "audio")
     normalized_format = "audioMP3" if is_audio else "videoMP4"
 
@@ -115,6 +146,8 @@ async def create_download(
         fps=body.fps,
         selected_format_id=body.selected_format_id,
         format_string=fmt_string,
+        status=JobStatus.QUEUED,
+        progress_text="En cola",
     )
     await job.insert()
 
@@ -126,6 +159,15 @@ async def create_download(
             created_at=datetime.now(timezone.utc)
         )
         await guest_record.insert()
+
+    register_job(
+        job_id=str(job.id),
+        user_id=user_id,
+        initial_status=JobStatus.QUEUED.value,
+        progress_text="En cola",
+        title=job.title,
+        thumbnail_url=job.thumbnail_url,
+    )
 
     background_tasks.add_task(DownloadService.start_download, job)
 
@@ -144,6 +186,7 @@ async def create_download(
         file_name=job.file_name,
         created_at=job.created_at,
         expires_at=job.expires_at,
+        queue_position=get_queue_position(str(job.id)),
     )
 
 @router.get("", response_model=PaginatedResponse[DownloadJobResponse])
@@ -163,6 +206,8 @@ async def list_downloads(
 
     total = await DownloadJob.find(DownloadJob.user_id == target_user_id).count()
     jobs = await DownloadJob.find(DownloadJob.user_id == target_user_id).skip(skip).limit(size).to_list()
+    active_statuses = (JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.MERGING)
+    jobs = [await fail_if_stale(job) if job.status in active_statuses else job for job in jobs]
     
     items = [
         DownloadJobResponse(
@@ -180,6 +225,7 @@ async def list_downloads(
             file_name=job.file_name,
             created_at=job.created_at,
             expires_at=job.expires_at,
+            queue_position=get_queue_position(str(job.id)) if job.status == JobStatus.QUEUED else None,
         ) for job in jobs
     ]
     pages = (total + size - 1) // size
@@ -194,6 +240,8 @@ async def get_download(
     job = await DownloadJob.get(job_id)
     if not job or not check_job_access(job, current_user, request):
         raise HTTPException(404, "Not found")
+        
+    job = await fail_if_stale(job)
         
     return DownloadJobResponse(
         job_id=str(job.id),
@@ -210,52 +258,143 @@ async def get_download(
         file_name=job.file_name,
         created_at=job.created_at,
         expires_at=job.expires_at,
+        queue_position=get_queue_position(str(job.id)) if job.status == JobStatus.QUEUED else None,
     )
 
 @router.get("/{job_id}/stream")
 async def stream_progress(
     job_id: str,
     request: Request,
+    ticket: Optional[str] = None,
     current_user: Optional[User] = Depends(get_optional_current_user),
 ) -> EventSourceResponse:
+    if "token" in request.query_params and not ticket:
+        logger.warning(f"Deprecated ?token= on file/stream for job {job_id}")
+
+    job = await DownloadJob.get(job_id)
+    if not job:
+        raise HTTPException(404, "Not found")
+
+    if ticket is not None:
+        sub = verify_download_ticket(ticket, str(job.id), "stream")
+        if not sub or sub != str(job.user_id):
+            raise HTTPException(404, "Not found")
+    else:
+        if not check_job_access(job, current_user, request):
+            raise HTTPException(404, "Not found")
+
     async def event_generator():
+        start_time = asyncio.get_event_loop().time()
         while True:
-            job = await DownloadJob.get(job_id)
-            if not job or not check_job_access(job, current_user, request):
-                yield {"event": "error", "data": "Not found"}
+            if (asyncio.get_event_loop().time() - start_time) > settings.STREAM_MAX_SECONDS:
+                yield {"event": "error", "data": "timeout"}
                 break
-            
-            yield {
-                "event": "progress",
-                "data": json.dumps({
-                    "status": job.status,
-                    "stage": job.stage,
-                    "video_progress": job.video_progress,
-                    "audio_progress": job.audio_progress,
-                    "progress": job.progress,
-                    "progress_text": job.progress_text,
-                    "error_message": job.error_message,
-                    "title": job.title,
-                })
-            }
-            
-            if job.status in (JobStatus.DONE, JobStatus.FAILED, JobStatus.CANCELLED):
-                yield {"event": "done", "data": job.status.value}
-                break
-            
-            await asyncio.sleep(0.5)
+
+            mem_state = get_job_state(job_id)
+            if mem_state is not None:
+                status_str = mem_state.status
+                queue_pos = get_queue_position(job_id) if status_str == JobStatus.QUEUED.value else None
+                yield {
+                    "event": "progress",
+                    "data": json.dumps({
+                        "status": status_str,
+                        "stage": mem_state.stage,
+                        "video_progress": mem_state.video_progress,
+                        "audio_progress": mem_state.audio_progress,
+                        "progress": mem_state.progress,
+                        "progress_text": mem_state.progress_text,
+                        "error_message": mem_state.error_message,
+                        "title": mem_state.title,
+                        "queue_position": queue_pos,
+                    })
+                }
+
+                if status_str in (JobStatus.DONE.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value):
+                    yield {"event": "done", "data": status_str}
+                    break
+
+                await asyncio.sleep(1.0)
+            else:
+                current_job = await DownloadJob.get(job_id)
+                if not current_job:
+                    yield {"event": "error", "data": "Not found"}
+                    break
+                
+                current_job = await fail_if_stale(current_job)
+                status_val = current_job.status.value if hasattr(current_job.status, "value") else str(current_job.status)
+                queue_pos = get_queue_position(job_id) if current_job.status == JobStatus.QUEUED else None
+                
+                yield {
+                    "event": "progress",
+                    "data": json.dumps({
+                        "status": status_val,
+                        "stage": current_job.stage,
+                        "video_progress": current_job.video_progress,
+                        "audio_progress": current_job.audio_progress,
+                        "progress": current_job.progress,
+                        "progress_text": current_job.progress_text,
+                        "error_message": current_job.error_message,
+                        "title": current_job.title,
+                        "queue_position": queue_pos,
+                    })
+                }
+                
+                if current_job.status in (JobStatus.DONE, JobStatus.FAILED, JobStatus.CANCELLED):
+                    yield {"event": "done", "data": status_val}
+                    break
+                
+                await asyncio.sleep(2.0)
     
     return EventSourceResponse(event_generator())
+
+@router.post("/{job_id}/ticket", response_model=DownloadTicketResponse)
+async def create_download_ticket_for_job(
+    job_id: str,
+    request: Request,
+    scope: str = "file",
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    if scope not in ("file", "stream"):
+        raise HTTPException(400, "Invalid scope")
+
+    job = await DownloadJob.get(job_id)
+    if not job or not check_job_access(job, current_user, request) or (current_user and job.user_id != str(current_user.id)):
+        raise HTTPException(404, "Not found")
+
+    if not current_user:
+        raise HTTPException(400, "Guests do not need a ticket")
+
+    if scope == "file" and job.status != JobStatus.DONE:
+        raise HTTPException(400, "Job no terminado")
+
+    ticket = create_download_ticket(job_id=str(job.id), user_id=str(current_user.id), scope=scope)
+    return DownloadTicketResponse(
+        ticket=ticket,
+        expires_in=settings.DOWNLOAD_TICKET_TTL_SECONDS,
+    )
 
 @router.get("/{job_id}/file")
 async def download_file(
     job_id: str,
     request: Request,
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    ticket: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
+    if "token" in request.query_params and not ticket:
+        logger.warning(f"Deprecated ?token= on file/stream for job {job_id}")
+
     job = await DownloadJob.get(job_id)
-    if not job or not check_job_access(job, current_user, request):
+    if not job:
         raise HTTPException(404, "Not found")
+
+    if ticket is not None:
+        sub = verify_download_ticket(ticket, str(job.id), "file")
+        if not sub or sub != str(job.user_id):
+            raise HTTPException(404, "Not found")
+    else:
+        if not check_job_access(job, current_user, request):
+            raise HTTPException(404, "Not found")
+
     if job.status != JobStatus.DONE:
         raise HTTPException(400, "Job no terminado")
     
@@ -284,6 +423,8 @@ async def delete_download(
     if not job or not check_job_access(job, current_user, request):
         raise HTTPException(404, "Not found")
     
+    cancel_job(str(job.id))
     job.status = JobStatus.CANCELLED
+    job.updated_at = datetime.now(timezone.utc)
     await job.save()
 

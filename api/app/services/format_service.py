@@ -1,8 +1,14 @@
 import asyncio
-import json
+from typing import Optional, Any
+import yt_dlp
 from app.schemas.downloads import AvailableFormatResponse, FetchFormatsResponse
 from app.core.logging import get_logger
-from app.services.ytdlp_utils import get_base_ytdlp_args
+from app.services.ytdlp_utils import build_ytdlp_options, YTDLPLogger
+from app.services.ytdlp_engine import (
+    get_extraction_semaphore,
+    get_cached_info,
+    set_cached_info,
+)
 
 logger = get_logger(__name__)
 
@@ -34,44 +40,46 @@ def _display_label(height: int, fps: float, vcodec: str, is_hdr: bool) -> str:
 class FormatService:
 
     @staticmethod
+    def _extract_sync(url: str, ignore_cookies: bool = False) -> tuple[Optional[dict[str, Any]], str]:
+        yl = YTDLPLogger(logger)
+        opts = build_ytdlp_options(ignore_cookies=ignore_cookies, ytdlp_logger=yl)
+        opts.update({
+            "noplaylist": True,
+            "skip_download": True,
+        })
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                res = ydl.extract_info(url, download=False)
+                sanitized = ydl.sanitize_info(res)
+                return sanitized, ""
+        except Exception as e:
+            err_msg = yl.last_error or str(e)
+            return None, err_msg
+
+    @staticmethod
     async def fetch_formats(url: str) -> FetchFormatsResponse:
-        base_args = get_base_ytdlp_args()
-        proc = await asyncio.create_subprocess_exec(
-            "yt-dlp", *base_args, "-j", "--no-playlist", "--skip-download", url,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-
-        info = None
-        if stdout:
-            try:
-                info = json.loads(stdout.decode("utf-8"))
-            except Exception:
-                info = None
-
+        info = get_cached_info(url)
         if not info:
-            err = stderr.decode("utf-8", errors="replace")[:500]
-            if any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
-                logger.warning("yt-dlp -j falló por cookies inválidas, reintentando sin cookies: url=%s err=%s", url, err[:120])
-                base_args_no_cookies = get_base_ytdlp_args(ignore_cookies=True)
-                proc_retry = await asyncio.create_subprocess_exec(
-                    "yt-dlp", *base_args_no_cookies, "-j", "--no-playlist", "--skip-download", url,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout_r, stderr_r = await proc_retry.communicate()
-                if stdout_r:
-                    try:
-                        info = json.loads(stdout_r.decode("utf-8"))
-                    except Exception:
-                        info = None
+            async with get_extraction_semaphore():
+                # Re-comprobar caché dentro del semáforo de extracción
+                info = get_cached_info(url)
                 if not info:
-                    err = stderr_r.decode("utf-8", errors="replace")[:500]
+                    logger.info("Extracting info with yt-dlp for url: %s", url)
+                    info, err = await asyncio.to_thread(FormatService._extract_sync, url, False)
 
-        if not info:
-            logger.warning("yt-dlp -j falló: url=%s err=%s", url, err)
-            raise ValueError(f"No se pudo obtener información: {err}")
+                    if not info:
+                        if any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
+                            logger.warning("yt-dlp -j falló por cookies inválidas, reintentando sin cookies: url=%s err=%s", url, err[:120])
+                            info, err = await asyncio.to_thread(FormatService._extract_sync, url, True)
+
+                    if not info:
+                        logger.warning("yt-dlp -j falló: url=%s err=%s", url, err)
+                        raise ValueError(f"No se pudo obtener información: {err}")
+
+                    set_cached_info(url, info)
+        else:
+            logger.info("Cache hit for formats: url=%s", url)
+
         raw_formats = info.get("formats", [])
 
         video_formats = []

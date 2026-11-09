@@ -12,6 +12,9 @@ from app.core.config import settings
 from app.db.mongodb import init_db
 from app.api.v1.router import api_router
 from app.core.logging import get_logger
+from app.models.download_job import DownloadJob, JobStatus
+from app.services.download_service import fail_if_stale
+from beanie.operators import In
 
 logger = get_logger(__name__)
 
@@ -22,6 +25,14 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database connection...")
     await init_db()
     logger.info("Database connection initialized.")
+    try:
+        active_jobs = await DownloadJob.find(
+            In("status", [JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.MERGING])
+        ).to_list()
+        for job in active_jobs:
+            await fail_if_stale(job)
+    except Exception:
+        logger.exception("Error durante el barrido de trabajos huérfanos al iniciar")
     yield
     logger.info("Closing database connection...")
 

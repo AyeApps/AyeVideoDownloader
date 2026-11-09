@@ -47,6 +47,9 @@ async def get_current_user(
             algorithms=[ALGORITHM],
             options={"verify_aud": False}
         )
+        token_type = payload.get("type")
+        if token_type is not None and token_type != "access":
+            raise credentials_exception
         user_id: str = payload.get("sub")
         email: str = payload.get("email", "user@ayeapps.com")
         name: str = payload.get("name", "")
@@ -89,10 +92,5 @@ async def get_optional_current_user(
     if not auth_token:
         return None
         
-    try:
-        return await get_current_user(request=request, bearer_token=bearer_token, token=token)
-    except HTTPException:
-        return None
-    except Exception:
-        return None
+    return await get_current_user(request=request, bearer_token=bearer_token, token=token)
 

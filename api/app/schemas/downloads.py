@@ -58,3 +58,8 @@ class DownloadJobResponse(BaseModel):
     file_name: Optional[str]
     created_at: datetime
     expires_at: Optional[datetime]
+    queue_position: Optional[int] = None
+
+class DownloadTicketResponse(BaseModel):
+    ticket: str
+    expires_in: int
