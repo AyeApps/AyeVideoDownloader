@@ -127,7 +127,14 @@ def build_ytdlp_options(
 
     # Runtimes JS para descifrado de firmas
     if settings.YTDLP_JS_RUNTIMES:
-        rts = [rt.strip() for rt in settings.YTDLP_JS_RUNTIMES.split(",") if rt.strip()]
+        # La API de YoutubeDL espera {runtime: {"path": ruta|None}}, igual que --js-runtimes
+        # del CLI ("node", "deno:/usr/local/bin/deno"); una lista la rechaza.
+        rts: dict[str, dict[str, Optional[str]]] = {}
+        for rt in settings.YTDLP_JS_RUNTIMES.split(","):
+            rt = rt.strip()
+            if rt:
+                name, _, path = rt.partition(":")
+                rts[name.strip().lower()] = {"path": path.strip() or None}
         if rts:
             opts["js_runtimes"] = rts
 
