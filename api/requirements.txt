@@ -9,8 +9,4 @@ bcrypt==4.0.1
 slowapi
 yt-dlp[default]
 sse-starlette
-ruff
-pytest
-pytest-asyncio
-httpx
 email-validator
