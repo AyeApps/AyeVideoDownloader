@@ -28,7 +28,7 @@ Los ids A1–A2 y C1–C4 (2026-10/11, entregados en el chat antes de esta conve
 - VPS: el compose es `~/aye/docker-compose.prod.yml` (requiere `-f`); comparte máquina con otras apps.
 
 ## Verificación (auditoría al "listo")
-- Backend: `api/venv/bin/ruff check api` y `api/venv/bin/python -m compileall -q api/app api/main.py`. pytest está configurado (`app/tests`) pero hoy no hay tests; si un spec añade tests, correrlos con `cd api && venv/bin/pytest`.
+- Backend: `api/venv/bin/ruff check api` y `cd api && venv/bin/pytest` (35 tests sin Mongo ni red; dependencias en `requirements-dev.txt`). Antes de un deploy, también `RUN_NETWORK_TESTS=1 venv/bin/pytest -m network` (descargas reales de YouTube en audio y video).
 - Frontend: `cd frontend && npm run lint && npm run build`.
 - Grafos: `~/.claude/tools/graphify-bridge/refresh.sh <repo> aye-video-downloader`, revisar los huecos del puente y `graphify affected` sobre lo tocado.
 - Un commit por bloque tras la auditoría; actualizar la memoria del proyecto con estado y siguiente paso.
