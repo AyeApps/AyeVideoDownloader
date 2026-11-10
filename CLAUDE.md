@@ -13,8 +13,8 @@ La entrega de specs y prompts sigue la sección **"How specs and prompts are del
 ## Letras de bloque
 | Letra | Alcance | Sigue |
 |---|---|---|
-| B | Backend FastAPI (`api/`: endpoints, servicios, modelos, Docker/Railway) | **B9** (B1–B2, B4 hechos; B5–B8 en curso; B3 reservado: quitar `?token=` en `/file` y `/stream`) |
-| W | Frontend web React 19 + Vite (`frontend/`) | **W2** (W1 en curso) |
+| B | Backend FastAPI (`api/`: endpoints, servicios, modelos, Docker/Railway) | **B9** (B1–B2, B4–B8 hechos; B3 reservado: quitar `?token=` en `/file` y `/stream`) |
+| W | Frontend web React 19 + Vite (`frontend/`) | **W2** (W1 hecho) |
 
 Los ids A1–A2 y C1–C4 (2026-10/11, entregados en el chat antes de esta convención) son históricos: no se reutilizan. Un cambio que toca los dos lados se parte en un B y un W con el contrato acordado en el spec del B.
 
