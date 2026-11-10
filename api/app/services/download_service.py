@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import shutil
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -13,13 +12,9 @@ from beanie.operators import In
 from app.core.logging import get_logger
 from app.core.config import settings
 from app.services.ytdlp_utils import build_ytdlp_options, YTDLPLogger, clean_ytdlp_error
-from app.services.format_service import FormatService
 from app.services.ytdlp_engine import (
     get_download_semaphore,
-    get_extraction_semaphore,
     get_cached_info,
-    set_cached_info,
-    invalidate_cached_info,
     get_job_state,
     is_job_cancelled,
     unregister_job,
@@ -199,13 +194,23 @@ async def cleanup_loop() -> None:
 
 
 def _make_download_hooks(job_id_str: str, is_audio: bool):
+    metadata_updated = False
+
     def progress_hook(d: dict):
+        nonlocal metadata_updated
         if is_job_cancelled(job_id_str):
             raise DownloadCancelled("Download cancelled by user")
 
+        info = d.get("info_dict") or {}
+        if not metadata_updated and info:
+            title = info.get("title")
+            thumbnail = info.get("thumbnail")
+            if title or thumbnail:
+                update_job_metadata(job_id_str, title=title, thumbnail_url=thumbnail)
+                metadata_updated = True
+
         status = d.get("status")
         if status in ("downloading", "finished"):
-            info = d.get("info_dict") or {}
             vcodec = info.get("vcodec", "none")
             is_stream_video = bool(vcodec and vcodec != "none")
 
@@ -272,13 +277,13 @@ def _make_download_hooks(job_id_str: str, is_audio: bool):
     return progress_hook, postprocessor_hook
 
 
-def _download_from_info_sync(
+def _extract_and_download_sync(
     job_id_str: str,
     temp_dir: Path,
+    url: str,
     job_format: str,
     format_string: Optional[str],
-    info_dict: dict[str, Any],
-    ignore_cookies: bool = False
+    ignore_cookies: bool = False,
 ) -> tuple[bool, str]:
     yl = YTDLPLogger(logger)
     opts = build_ytdlp_options(ignore_cookies=ignore_cookies, ytdlp_logger=yl)
@@ -305,7 +310,7 @@ def _download_from_info_sync(
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.process_ie_result(copy.deepcopy(info_dict), download=True)
+            ydl.extract_info(url, download=True)
             return True, ""
     except DownloadCancelled:
         raise
@@ -451,16 +456,11 @@ class DownloadService:
                     }
                 })
 
-                # Verificar si existe información en caché para la URL
-                info_to_use = get_cached_info(job.url)
-                from_cache = info_to_use is not None
-                success = False
-                err = ""
-
-                if from_cache and info_to_use:
-                    logger.info("Download job %s: using cached info for url=%s", job_id_str, job.url)
-                    title = info_to_use.get("title")
-                    thumbnail = info_to_use.get("thumbnail")
+                # Si hay información en caché, aprovechar title y thumbnail
+                cached_info = get_cached_info(job.url)
+                if cached_info:
+                    title = cached_info.get("title")
+                    thumbnail = cached_info.get("thumbnail")
                     if title or thumbnail:
                         update_job_metadata(job_id_str, title=title, thumbnail_url=thumbnail)
                         now = datetime.now(timezone.utc)
@@ -469,82 +469,31 @@ class DownloadService:
                             DownloadJob.status != JobStatus.CANCELLED
                         ).update({"$set": {"title": title, "thumbnail_url": thumbnail, "updated_at": now}})
 
-                    success, err = await asyncio.to_thread(
-                        _download_from_info_sync,
-                        job_id_str,
-                        temp_dir,
-                        job.format,
-                        job.format_string,
-                        info_to_use,
-                        False
-                    )
+                success, err = await asyncio.to_thread(
+                    _extract_and_download_sync,
+                    job_id_str,
+                    temp_dir,
+                    job.url,
+                    job.format,
+                    job.format_string,
+                    False,
+                )
 
-                    if not success and not is_job_cancelled(job_id_str):
+                if not success and not is_job_cancelled(job_id_str):
+                    if any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
                         logger.warning(
-                            "Download job %s falló usando caché (err=%s), reintentando con extracción nueva...",
+                            "Download job %s descarga falló por cookies, reintentando sin cookies: err=%s",
                             job_id_str, err[:120]
                         )
-                        invalidate_cached_info(job.url)
-                        info_to_use = None
-                        from_cache = False
-
-                if not from_cache and not is_job_cancelled(job_id_str):
-                    # Extracción dentro del semáforo de extracción
-                    async with get_extraction_semaphore():
-                        if is_job_cancelled(job_id_str):
-                            final_status = JobStatus.CANCELLED
-                            return
-
-                        logger.info("Download job %s: extracting info inside semaphore for url=%s", job_id_str, job.url)
-                        fresh_info, extract_err = await asyncio.to_thread(FormatService._extract_sync, job.url, False)
-                        if not fresh_info and any(ck in extract_err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
-                            logger.warning(
-                                "Download job %s extracción falló por cookies inválidas, reintentando extracción sin cookies: err=%s",
-                                job_id_str, extract_err[:120]
-                            )
-                            fresh_info, extract_err = await asyncio.to_thread(FormatService._extract_sync, job.url, True)
-
-                        if not fresh_info:
-                            err = extract_err
-                            success = False
-                        else:
-                            set_cached_info(job.url, fresh_info)
-                            info_to_use = fresh_info
-                            title = info_to_use.get("title")
-                            thumbnail = info_to_use.get("thumbnail")
-                            if title or thumbnail:
-                                update_job_metadata(job_id_str, title=title, thumbnail_url=thumbnail)
-                                now = datetime.now(timezone.utc)
-                                await DownloadJob.find_one(
-                                    DownloadJob.id == job.id,
-                                    DownloadJob.status != JobStatus.CANCELLED
-                                ).update({"$set": {"title": title, "thumbnail_url": thumbnail, "updated_at": now}})
-
-                    if info_to_use and not is_job_cancelled(job_id_str):
                         success, err = await asyncio.to_thread(
-                            _download_from_info_sync,
+                            _extract_and_download_sync,
                             job_id_str,
                             temp_dir,
+                            job.url,
                             job.format,
                             job.format_string,
-                            info_to_use,
-                            False
+                            True,
                         )
-                        if not success and not is_job_cancelled(job_id_str):
-                            if any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
-                                logger.warning(
-                                    "Download job %s descarga falló por cookies, reintentando sin cookies: err=%s",
-                                    job_id_str, err[:120]
-                                )
-                                success, err = await asyncio.to_thread(
-                                    _download_from_info_sync,
-                                    job_id_str,
-                                    temp_dir,
-                                    job.format,
-                                    job.format_string,
-                                    info_to_use,
-                                    True
-                                )
 
                 if is_job_cancelled(job_id_str):
                     final_status = JobStatus.CANCELLED
