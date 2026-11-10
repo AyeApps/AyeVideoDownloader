@@ -11,6 +11,10 @@ target-version = "py313"
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --asyncio-mode=auto"
+pythonpath = ["."]
 testpaths = [
     "app/tests",
+]
+markers = [
+    "network: tests that require real internet access (deselect with '-m not network')",
 ]
