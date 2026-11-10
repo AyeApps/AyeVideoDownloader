@@ -106,9 +106,10 @@ export default function App() {
   downloadsRef.current = downloads;
 
   useEffect(() => {
+    const pollTimers = pollTimersRef.current;
     return () => {
-      pollTimersRef.current.forEach(timerId => clearTimeout(timerId));
-      pollTimersRef.current.clear();
+      pollTimers.forEach(timerId => clearTimeout(timerId));
+      pollTimers.clear();
     };
   }, []);
   const [history, setHistory] = useState(() => {
