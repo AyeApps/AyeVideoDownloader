@@ -1,14 +1,16 @@
 import asyncio
-from typing import Optional, Any
+from typing import Any
+
 import yt_dlp
-from app.schemas.downloads import AvailableFormatResponse, FetchFormatsResponse
+
 from app.core.logging import get_logger
-from app.services.ytdlp_utils import build_ytdlp_options, YTDLPLogger
+from app.schemas.downloads import AvailableFormatResponse, FetchFormatsResponse
 from app.services.ytdlp_engine import (
-    get_extraction_semaphore,
     get_cached_info,
+    get_extraction_semaphore,
     set_cached_info,
 )
+from app.services.ytdlp_utils import YTDLPLogger, build_ytdlp_options
 
 logger = get_logger(__name__)
 
@@ -40,7 +42,7 @@ def _display_label(height: int, fps: float, vcodec: str, is_hdr: bool) -> str:
 class FormatService:
 
     @staticmethod
-    def _extract_sync(url: str, ignore_cookies: bool = False) -> tuple[Optional[dict[str, Any]], str]:
+    def _extract_sync(url: str, ignore_cookies: bool = False) -> tuple[dict[str, Any] | None, str]:
         yl = YTDLPLogger(logger)
         opts = build_ytdlp_options(ignore_cookies=ignore_cookies, ytdlp_logger=yl)
         opts.update({
@@ -52,7 +54,7 @@ class FormatService:
                 res = ydl.extract_info(url, download=False)
                 sanitized = ydl.sanitize_info(res)
                 return sanitized, ""
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — yt-dlp lanza tipos arbitrarios; capturamos todo para devolver el error como resultado
             err_msg = yl.last_error or str(e)
             return None, err_msg
 
@@ -67,10 +69,9 @@ class FormatService:
                     logger.info("Extracting info with yt-dlp for url: %s", url)
                     info, err = await asyncio.to_thread(FormatService._extract_sync, url, False)
 
-                    if not info:
-                        if any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
-                            logger.warning("yt-dlp -j falló por cookies inválidas, reintentando sin cookies: url=%s err=%s", url, err[:120])
-                            info, err = await asyncio.to_thread(FormatService._extract_sync, url, True)
+                    if not info and any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
+                        logger.warning("yt-dlp -j falló por cookies inválidas, reintentando sin cookies: url=%s err=%s", url, err[:120])
+                        info, err = await asyncio.to_thread(FormatService._extract_sync, url, True)
 
                     if not info:
                         logger.warning("yt-dlp -j falló: url=%s err=%s", url, err)

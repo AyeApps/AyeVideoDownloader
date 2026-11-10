@@ -1,13 +1,15 @@
 import base64
-import os
 import logging
-from motor.motor_asyncio import AsyncIOMotorClient
+import os
+
 from beanie import init_beanie
+from motor.motor_asyncio import AsyncIOMotorClient
+
 from app.core.config import settings
-from app.models.user import User
 from app.models.download_job import DownloadJob
-from app.models.revoked_token import RevokedToken
 from app.models.guest_download import GuestDownload
+from app.models.revoked_token import RevokedToken
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +19,11 @@ async def init_db():
         temp_cert = "/tmp/aye_video_cert.pem"
         try:
             cert_bytes = base64.b64decode(settings.MONGODB_CERT_B64.strip())
-            with open(temp_cert, "wb") as f:
+            with open(temp_cert, "wb") as f:  # noqa: ASYNC230 — escritura única a /tmp en el arranque; usar asyncio.to_thread aquí sería innecesariamente complejo
                 f.write(cert_bytes)
             cert_path = temp_cert
             logger.info("Decoded X.509 certificate from MONGODB_CERT_B64 successfully.")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — captura errores de decodificación del certificado (base64 inválido, permisos de escritura, etc.)
             logger.error(f"Error decoding MONGODB_CERT_B64: {e}")
 
     client_kwargs = {

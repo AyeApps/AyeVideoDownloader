@@ -1,46 +1,47 @@
 import asyncio
 import shutil
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
-import yt_dlp
-from yt_dlp.utils import DownloadCancelled
-from bson import ObjectId
+from typing import Any
 
-from app.models.download_job import DownloadJob, JobStatus
+import yt_dlp
 from beanie.operators import In
-from app.core.logging import get_logger
+from bson import ObjectId
+from yt_dlp.utils import DownloadCancelled
+
 from app.core.config import settings
-from app.services.ytdlp_utils import build_ytdlp_options, YTDLPLogger, clean_ytdlp_error
+from app.core.logging import get_logger
+from app.models.download_job import DownloadJob, JobStatus
 from app.services.ytdlp_engine import (
-    get_download_semaphore,
     get_cached_info,
+    get_download_semaphore,
     get_job_state,
     is_job_cancelled,
     unregister_job,
-    update_job_progress,
-    update_job_merging,
-    update_job_status,
-    update_job_metadata,
     update_job_done,
+    update_job_merging,
+    update_job_metadata,
+    update_job_progress,
+    update_job_status,
 )
+from app.services.ytdlp_utils import YTDLPLogger, build_ytdlp_options, clean_ytdlp_error
 
 logger = get_logger(__name__)
 
 
-def _to_utc(dt: Optional[datetime]) -> datetime:
+def _to_utc(dt: datetime | None) -> datetime:
     if dt is None:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 async def fail_if_stale(job: DownloadJob) -> DownloadJob:
     if job.status not in (JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.MERGING):
         return job
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     updated_at_utc = _to_utc(job.updated_at)
 
     heartbeat_stale = (now - updated_at_utc).total_seconds() > settings.JOB_STALE_SECONDS
@@ -106,7 +107,7 @@ async def cleanup_downloads() -> int:
     Devuelve el número total de carpetas borradas de disco.
     """
     deleted_count = 0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 1. Pasada de vencidos
     try:
@@ -168,9 +169,8 @@ async def cleanup_downloads() -> int:
                         if not is_valid_done:
                             should_delete = True
 
-                if should_delete:
-                    if await remove_job_temp_dir(folder_name):
-                        deleted_count += 1
+                if should_delete and await remove_job_temp_dir(folder_name):
+                    deleted_count += 1
             except Exception:
                 logger.exception("Error procesando carpeta huérfana %s", folder_name)
 
@@ -282,7 +282,7 @@ def _extract_and_download_sync(
     temp_dir: Path,
     url: str,
     job_format: str,
-    format_string: Optional[str],
+    format_string: str | None,
     ignore_cookies: bool = False,
 ) -> tuple[bool, str]:
     yl = YTDLPLogger(logger)
@@ -314,7 +314,7 @@ def _extract_and_download_sync(
             return True, ""
     except DownloadCancelled:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — yt-dlp lanza tipos arbitrarios; capturamos todo para devolver el mensaje como resultado, no para silenciarlo
         err = yl.last_error or str(e)
         return False, err
 
@@ -329,17 +329,17 @@ class DownloadService:
     async def start_download(job: DownloadJob) -> None:
         job_id_str = str(job.id)
         temp_dir = Path(settings.TEMP_DIR) / job_id_str
-        progress_flush_task: Optional[asyncio.Task] = None
+        progress_flush_task: asyncio.Task | None = None
         final_status: JobStatus = JobStatus.FAILED
 
         # Tarea en segundo plano para flush de progreso y heartbeat a Mongo
         async def _progress_flush_loop() -> None:
             last_flushed_snapshot = None
-            last_heartbeat_time = datetime.now(timezone.utc)
+            last_heartbeat_time = datetime.now(UTC)
             try:
                 while True:
                     await asyncio.sleep(settings.PROGRESS_FLUSH_SECONDS)
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     state = get_job_state(job_id_str)
                     if not state:
                         continue
@@ -411,7 +411,7 @@ class DownloadService:
                     Path(settings.TEMP_DIR).mkdir(parents=True, exist_ok=True)
                     disk_stat = shutil.disk_usage(settings.TEMP_DIR)
                     free_mb = disk_stat.free // (1024 * 1024)
-                except Exception:
+                except Exception:  # noqa: BLE001 — fallback si TEMP_DIR no existe o no es accesible; asumimos espacio suficiente para no bloquear la descarga
                     free_mb = 999999
 
                 if free_mb < settings.MIN_FREE_DISK_MB:
@@ -421,7 +421,7 @@ class DownloadService:
                         job_id_str, free_mb, settings.MIN_FREE_DISK_MB
                     )
                     final_status = JobStatus.FAILED
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     await DownloadJob.find_one(
                         DownloadJob.id == job.id,
                         DownloadJob.status != JobStatus.CANCELLED
@@ -441,7 +441,7 @@ class DownloadService:
                     )
                     return
 
-                started_at = datetime.now(timezone.utc)
+                started_at = datetime.now(UTC)
                 temp_dir.mkdir(parents=True, exist_ok=True)
 
                 update_job_status(job_id_str, status=JobStatus.RUNNING.value, progress_text="Descargando...")
@@ -463,7 +463,7 @@ class DownloadService:
                     thumbnail = cached_info.get("thumbnail")
                     if title or thumbnail:
                         update_job_metadata(job_id_str, title=title, thumbnail_url=thumbnail)
-                        now = datetime.now(timezone.utc)
+                        now = datetime.now(UTC)
                         await DownloadJob.find_one(
                             DownloadJob.id == job.id,
                             DownloadJob.status != JobStatus.CANCELLED
@@ -479,21 +479,20 @@ class DownloadService:
                     False,
                 )
 
-                if not success and not is_job_cancelled(job_id_str):
-                    if any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
-                        logger.warning(
-                            "Download job %s descarga falló por cookies, reintentando sin cookies: err=%s",
-                            job_id_str, err[:120]
-                        )
-                        success, err = await asyncio.to_thread(
-                            _extract_and_download_sync,
-                            job_id_str,
-                            temp_dir,
-                            job.url,
-                            job.format,
-                            job.format_string,
-                            True,
-                        )
+                if not success and not is_job_cancelled(job_id_str) and any(ck in err.lower() for ck in ("cookie", "cookies", "rotated in the browser", "no longer valid")):
+                    logger.warning(
+                        "Download job %s descarga falló por cookies, reintentando sin cookies: err=%s",
+                        job_id_str, err[:120]
+                    )
+                    success, err = await asyncio.to_thread(
+                        _extract_and_download_sync,
+                        job_id_str,
+                        temp_dir,
+                        job.url,
+                        job.format,
+                        job.format_string,
+                        True,
+                    )
 
                 if is_job_cancelled(job_id_str):
                     final_status = JobStatus.CANCELLED
@@ -509,7 +508,7 @@ class DownloadService:
 
                     if final_file:
                         final_status = JobStatus.DONE
-                        now = datetime.now(timezone.utc)
+                        now = datetime.now(UTC)
                         expires_at = now + timedelta(minutes=settings.DOWNLOAD_TTL_MINUTES)
                         await DownloadJob.find_one(
                             DownloadJob.id == job.id,
@@ -534,7 +533,7 @@ class DownloadService:
                         final_status = JobStatus.FAILED
                         err_msg = f"El video supera el tamaño máximo de {settings.MAX_FILE_SIZE_MB} MB"
                         logger.warning("Download job %s falló: archivo no encontrado o excedió max_filesize", job_id_str)
-                        now = datetime.now(timezone.utc)
+                        now = datetime.now(UTC)
                         await DownloadJob.find_one(
                             DownloadJob.id == job.id,
                             DownloadJob.status != JobStatus.CANCELLED
@@ -556,7 +555,7 @@ class DownloadService:
                     final_status = JobStatus.FAILED
                     clean_err = clean_ytdlp_error(err)
                     logger.error("Download job %s failed: %s", job_id_str, clean_err)
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     await DownloadJob.find_one(
                         DownloadJob.id == job.id,
                         DownloadJob.status != JobStatus.CANCELLED
@@ -579,11 +578,11 @@ class DownloadService:
             logger.info("Download job %s cancelado durante la ejecución", job_id_str)
             final_status = JobStatus.CANCELLED
             return
-        except Exception as e:
-            logger.exception("Excepción no controlada en start_download para job %s: %s", job_id_str, e)
+        except Exception:
+            logger.exception("Excepción no controlada en start_download para job %s", job_id_str)
             final_status = JobStatus.FAILED
             err_msg = "Error interno"
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             try:
                 await DownloadJob.find_one(
                     DownloadJob.id == job.id,
@@ -613,9 +612,6 @@ class DownloadService:
                     pass
 
             if final_status != JobStatus.DONE:
-                try:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                except Exception:
-                    pass
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
             unregister_job(job_id_str)

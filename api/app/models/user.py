@@ -1,6 +1,8 @@
-from beanie import Document, Indexed
 from datetime import datetime
-from pydantic import Field, EmailStr
+
+from beanie import Document, Indexed
+from pydantic import EmailStr, Field
+
 
 class User(Document):
     email: Indexed(EmailStr, unique=True)

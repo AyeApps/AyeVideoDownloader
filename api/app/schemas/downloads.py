@@ -1,6 +1,7 @@
-from pydantic import BaseModel, HttpUrl
-from typing import Literal, Optional, List
 from datetime import datetime
+
+from pydantic import BaseModel, HttpUrl
+
 
 class FetchFormatsRequest(BaseModel):
     url: HttpUrl
@@ -10,8 +11,8 @@ class AvailableFormatResponse(BaseModel):
     height: int
     fps: float
     vcodec: str
-    filesize: Optional[int]
-    dynamic_range: Optional[str]
+    filesize: int | None
+    dynamic_range: str | None
     height_label: str
     codec_label: str
     is_hdr: bool
@@ -20,10 +21,10 @@ class AvailableFormatResponse(BaseModel):
 
 class FetchFormatsResponse(BaseModel):
     url: str
-    title: Optional[str]
-    duration: Optional[int]
-    thumbnail: Optional[str]
-    formats: List[AvailableFormatResponse]
+    title: str | None
+    duration: int | None
+    thumbnail: str | None
+    formats: list[AvailableFormatResponse]
 
 class BuildFormatStringRequest(BaseModel):
     quality: str = "best"
@@ -41,24 +42,24 @@ class CreateDownloadRequest(BaseModel):
     codec: str = "any"
     hdr: str = "any"
     fps: str = "any"
-    selected_format_id: Optional[str] = None
+    selected_format_id: str | None = None
 
 class DownloadJobResponse(BaseModel):
     job_id: str
     status: str
-    stage: Optional[str] = "video"
-    video_progress: Optional[float] = 0.0
-    audio_progress: Optional[float] = 0.0
+    stage: str | None = "video"
+    video_progress: float | None = 0.0
+    audio_progress: float | None = 0.0
     progress: float
     progress_text: str
-    error_message: Optional[str] = None
-    title: Optional[str]
-    thumbnail_url: Optional[str]
-    file_size: Optional[int]
-    file_name: Optional[str]
+    error_message: str | None = None
+    title: str | None
+    thumbnail_url: str | None
+    file_size: int | None
+    file_name: str | None
     created_at: datetime
-    expires_at: Optional[datetime]
-    queue_position: Optional[int] = None
+    expires_at: datetime | None
+    queue_position: int | None = None
 
 class DownloadTicketResponse(BaseModel):
     ticket: str

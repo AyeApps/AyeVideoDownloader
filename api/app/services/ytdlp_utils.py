@@ -1,14 +1,15 @@
-import os
 import base64
-import re
 import importlib.util
-from typing import Any, Optional
+import os
+import re
+from typing import Any
+
 from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-_prepared_cookies_path: Optional[str] = None
+_prepared_cookies_path: str | None = None
 _cookies_initialized: bool = False
 
 
@@ -48,7 +49,7 @@ def clean_ytdlp_error(err_msg: str) -> str:
     return clean or err_msg
 
 
-def get_prepared_cookies_path() -> Optional[str]:
+def get_prepared_cookies_path() -> str | None:
     """
     Prepara el archivo de cookies privado en /tmp la primera vez que se solicita
     (orden: B64, texto, ruta configurada, /app/cookies.txt) con permisos 0o600.
@@ -105,7 +106,7 @@ def get_prepared_cookies_path() -> Optional[str]:
 
 def build_ytdlp_options(
     ignore_cookies: bool = False,
-    ytdlp_logger: Optional[YTDLPLogger] = None
+    ytdlp_logger: YTDLPLogger | None = None
 ) -> dict[str, Any]:
     """
     Construye las opciones para la clase YoutubeDL de yt-dlp garantizando
@@ -129,7 +130,7 @@ def build_ytdlp_options(
     if settings.YTDLP_JS_RUNTIMES:
         # La API de YoutubeDL espera {runtime: {"path": ruta|None}}, igual que --js-runtimes
         # del CLI ("node", "deno:/usr/local/bin/deno"); una lista la rechaza.
-        rts: dict[str, dict[str, Optional[str]]] = {}
+        rts: dict[str, dict[str, str | None]] = {}
         for rt in settings.YTDLP_JS_RUNTIMES.split(","):
             rt = rt.strip()
             if rt:

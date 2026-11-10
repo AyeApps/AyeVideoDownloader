@@ -1,21 +1,21 @@
 import asyncio
 from contextlib import asynccontextmanager
+
+from beanie.operators import In
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
-from slowapi import _rate_limit_exceeded_handler
+from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from app.core.config import settings
-from app.db.mongodb import init_db
 from app.api.v1.router import api_router
+from app.core.config import settings
 from app.core.logging import get_logger
+from app.db.mongodb import init_db
 from app.models.download_job import DownloadJob, JobStatus
-from app.services.download_service import fail_if_stale, cleanup_loop
-from beanie.operators import In
+from app.services.download_service import cleanup_loop, fail_if_stale
 
 logger = get_logger(__name__)
 

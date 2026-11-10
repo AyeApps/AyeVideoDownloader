@@ -1,6 +1,8 @@
 import json
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     # ==========================================
@@ -91,11 +93,11 @@ class Settings(BaseSettings):
             if v_stripped.startswith("[") and v_stripped.endswith("]"):
                 try:
                     return json.loads(v_stripped)
-                except Exception:
+                except ValueError:
                     cleaned = v_stripped.strip("[]").replace("'", '"')
                     try:
                         return json.loads(f"[{cleaned}]")
-                    except Exception:
+                    except ValueError:
                         return [item.strip().strip("'\"") for item in v_stripped.strip("[]").split(",") if item.strip()]
             return [item.strip().strip("'\"") for item in v.split(",") if item.strip()]
         return v

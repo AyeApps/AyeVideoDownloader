@@ -1,18 +1,21 @@
-from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
+
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from app.core.config import settings
-from app.core.security import ALGORITHM
-from app.models.user import User
-from app.models.revoked_token import RevokedToken
 
+from app.core.config import settings
+from app.core.logging import get_logger
+from app.core.security import ALGORITHM
+from app.models.revoked_token import RevokedToken
+from app.models.user import User
+
+logger = get_logger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 async def get_current_user(
     request: Request,
-    bearer_token: Optional[str] = Depends(oauth2_scheme),
-    token: Optional[str] = None
+    bearer_token: str | None = Depends(oauth2_scheme),
+    token: str | None = None
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -38,8 +41,8 @@ async def get_current_user(
                 raise credentials_exception
         except HTTPException:
             raise
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — DB puede no estar disponible; continuamos sin verificar revocación
+            logger.warning("No se pudo verificar revocación del token (DB no disponible)")
 
         payload = jwt.decode(
             auth_token,
@@ -64,8 +67,8 @@ async def get_current_user(
                 return user
         except HTTPException:
             raise
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — DB puede no estar disponible; continuamos sin verificar revocación
+            logger.warning("No se pudo verificar revocación del token (DB no disponible)")
 
         # Stateless user verified by cryptographic signature from aye-auth
         return User(
@@ -80,9 +83,9 @@ async def get_current_user(
 
 async def get_optional_current_user(
     request: Request,
-    bearer_token: Optional[str] = Depends(oauth2_scheme),
-    token: Optional[str] = None
-) -> Optional[User]:
+    bearer_token: str | None = Depends(oauth2_scheme),
+    token: str | None = None
+) -> User | None:
     auth_token = bearer_token or token
     if not auth_token:
         auth_header = request.headers.get("Authorization")

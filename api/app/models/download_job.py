@@ -1,8 +1,9 @@
-from beanie import Document, Indexed
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
+
+from beanie import Document, Indexed
 from pydantic import Field
-from typing import Optional
+
 
 class JobStatus(str, Enum):
     PENDING   = "pending"
@@ -17,7 +18,7 @@ class JobStatus(str, Enum):
 
 class DownloadJob(Document):
     user_id: Indexed(str)
-    ip_hash: Optional[str] = None
+    ip_hash: str | None = None
     url: str
     format: str
 
@@ -26,8 +27,8 @@ class DownloadJob(Document):
     hdr: str = "any"
     fps: str = "any"
 
-    selected_format_id: Optional[str] = None
-    format_string: Optional[str] = None
+    selected_format_id: str | None = None
+    format_string: str | None = None
 
     status: JobStatus = JobStatus.PENDING
     stage: str = "video"
@@ -35,18 +36,18 @@ class DownloadJob(Document):
     audio_progress: float = 0.0
     progress: float = 0.0
     progress_text: str = ""
-    title: Optional[str] = None
-    thumbnail_url: Optional[str] = None
-    file_path: Optional[str] = None
-    file_name: Optional[str] = None
-    file_size: Optional[int] = None
-    error_message: Optional[str] = None
+    title: str | None = None
+    thumbnail_url: str | None = None
+    file_path: str | None = None
+    file_name: str | None = None
+    file_size: int | None = None
+    error_message: str | None = None
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    started_at: Optional[datetime] = None
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    expires_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    started_at: datetime | None = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    expires_at: datetime | None = None
 
     class Settings:
         name = "download_jobs"
-        indexes = ["user_id", "status", "created_at", [("expires_at", 1)]]
+        indexes = ["user_id", "status", "created_at", [("expires_at", 1)]]  # noqa: RUF012 — configuración de índices de Beanie, no campo del documento

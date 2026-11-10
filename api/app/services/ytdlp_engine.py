@@ -3,7 +3,8 @@ import copy
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any
+
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -12,8 +13,8 @@ logger = get_logger(__name__)
 # ==============================================================================
 # 1. Semáforos asyncio de extracción y descarga
 # ==============================================================================
-_extraction_semaphore: Optional[asyncio.Semaphore] = None
-_download_semaphore: Optional[asyncio.Semaphore] = None
+_extraction_semaphore: asyncio.Semaphore | None = None
+_download_semaphore: asyncio.Semaphore | None = None
 
 
 def get_extraction_semaphore() -> asyncio.Semaphore:
@@ -37,7 +38,7 @@ def get_download_semaphore() -> asyncio.Semaphore:
 _info_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
 
-def get_cached_info(url: str) -> Optional[dict[str, Any]]:
+def get_cached_info(url: str) -> dict[str, Any] | None:
     """
     Obtiene una copia profunda de la información saneada en caché si existe y no ha expirado.
     """
@@ -86,9 +87,9 @@ class ActiveJobState:
     audio_progress: float = 0.0
     progress: float = 0.0
     progress_text: str = "En cola"
-    title: Optional[str] = None
-    thumbnail_url: Optional[str] = None
-    error_message: Optional[str] = None
+    title: str | None = None
+    thumbnail_url: str | None = None
+    error_message: str | None = None
     is_cancelled: bool = False
     arrival_order: int = 0
     created_at: float = 0.0
@@ -103,8 +104,8 @@ def register_job(
     user_id: str,
     initial_status: str = "queued",
     progress_text: str = "En cola",
-    title: Optional[str] = None,
-    thumbnail_url: Optional[str] = None,
+    title: str | None = None,
+    thumbnail_url: str | None = None,
 ) -> ActiveJobState:
     """
     Registra un trabajo activo en el registro en memoria con su orden de llegada.
@@ -153,7 +154,7 @@ def is_job_cancelled(job_id: str) -> bool:
     return state.is_cancelled if state else False
 
 
-def get_job_state(job_id: str) -> Optional[ActiveJobState]:
+def get_job_state(job_id: str) -> ActiveJobState | None:
     """
     Obtiene el estado en memoria de un trabajo registrado.
     """
@@ -205,8 +206,8 @@ def update_job_merging(
 def update_job_status(
     job_id: str,
     status: str,
-    progress_text: Optional[str] = None,
-    error_message: Optional[str] = None,
+    progress_text: str | None = None,
+    error_message: str | None = None,
 ) -> None:
     """
     Actualiza el status y mensajes de un trabajo en memoria.
@@ -222,8 +223,8 @@ def update_job_status(
 
 def update_job_metadata(
     job_id: str,
-    title: Optional[str] = None,
-    thumbnail_url: Optional[str] = None,
+    title: str | None = None,
+    thumbnail_url: str | None = None,
 ) -> None:
     """
     Actualiza título y miniatura en el registro cuando se obtienen.
@@ -250,7 +251,7 @@ def update_job_done(job_id: str) -> None:
         state.progress_text = "Completado"
 
 
-def get_queue_position(job_id: str) -> Optional[int]:
+def get_queue_position(job_id: str) -> int | None:
     """
     Retorna cuántos trabajos activos van por delante del trabajo en cola.
     Cuenta los trabajos registrados que no están cancelados, que llegaron antes

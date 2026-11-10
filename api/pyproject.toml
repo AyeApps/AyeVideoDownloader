@@ -8,6 +8,16 @@ requires-python = ">=3.13"
 line-length = 100
 target-version = "py313"
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI usa Depends/Query/Body/Header como valores por defecto en parámetros de endpoint; es el
+# patrón correcto de la librería y no introduce estado mutable compartido.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Body",
+    "fastapi.Header",
+]
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --asyncio-mode=auto"

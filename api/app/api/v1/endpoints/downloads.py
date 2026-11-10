@@ -1,34 +1,35 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+import asyncio
+import hashlib
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from beanie.operators import In
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
-from app.schemas.downloads import CreateDownloadRequest, DownloadJobResponse, DownloadTicketResponse
+
+from app.core.config import settings
+from app.core.deps import get_optional_current_user
+from app.core.logging import get_logger
+from app.core.security import create_download_ticket, verify_download_ticket
 from app.models.download_job import DownloadJob, JobStatus
 from app.models.guest_download import GuestDownload
 from app.models.user import User
-from app.core.config import settings
-from app.core.deps import get_optional_current_user
-from app.core.security import create_download_ticket, verify_download_ticket
-from app.core.logging import get_logger
-from app.services.format_service import FormatService
+from app.schemas.downloads import CreateDownloadRequest, DownloadJobResponse, DownloadTicketResponse
+from app.schemas.pagination import PaginatedResponse
 from app.services.download_service import DownloadService, fail_if_stale, remove_job_temp_dir
-from beanie.operators import In
+from app.services.format_service import FormatService
 from app.services.ytdlp_engine import (
+    cancel_job,
     count_active_jobs,
     count_active_jobs_for_user,
-    register_job,
-    cancel_job,
-    get_queue_position,
     get_job_state,
+    get_queue_position,
+    register_job,
 )
-from app.schemas.pagination import PaginatedResponse
-from pathlib import Path
-from typing import Optional
-from datetime import datetime, timezone, timedelta
-import hashlib
-import json
-import asyncio
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 logger = get_logger(__name__)
 limiter = Limiter(key_func=get_remote_address)
@@ -48,7 +49,7 @@ def get_client_ip(request: Request) -> str:
 def hash_client_ip(ip: str) -> str:
     return hashlib.sha256(ip.encode("utf-8")).hexdigest()[:16]
 
-def check_job_access(job: DownloadJob, current_user: Optional[User], request: Request) -> bool:
+def check_job_access(job: DownloadJob, current_user: User | None, request: Request) -> bool:
     if current_user and job.user_id == str(current_user.id):
         return True
     
@@ -56,17 +57,14 @@ def check_job_access(job: DownloadJob, current_user: Optional[User], request: Re
     ip_hash = hash_client_ip(ip)
     if job.user_id == f"guest_{ip_hash}":
         return True
-    if hasattr(job, "ip_hash") and job.ip_hash == ip_hash:
-        return True
-        
-    return False
+    return bool(hasattr(job, "ip_hash") and job.ip_hash == ip_hash)
 
 @router.get("/guest-quota")
 @router.get("/quota")
 async def get_guest_quota(request: Request):
     ip = get_client_ip(request)
     ip_hash = hash_client_ip(ip)
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff = datetime.now(UTC) - timedelta(hours=24)
     count = await GuestDownload.find(
         GuestDownload.ip_hash == ip_hash,
         GuestDownload.created_at >= cutoff
@@ -84,13 +82,13 @@ async def create_download(
     request: Request,
     body: CreateDownloadRequest,
     background_tasks: BackgroundTasks,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     ip = get_client_ip(request)
     ip_hash = hash_client_ip(ip)
 
     if not current_user:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        cutoff = datetime.now(UTC) - timedelta(hours=24)
         count = await GuestDownload.find(
             GuestDownload.ip_hash == ip_hash,
             GuestDownload.created_at >= cutoff
@@ -157,7 +155,7 @@ async def create_download(
             ip_hash=ip_hash,
             job_id=str(job.id),
             url=str(body.url),
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(UTC)
         )
         await guest_record.insert()
 
@@ -196,7 +194,7 @@ async def list_downloads(
     request: Request,
     page: int = 1,
     size: int = 20,
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user)
 ):
     skip = (page - 1) * size
     if current_user:
@@ -236,7 +234,7 @@ async def list_downloads(
 async def get_download(
     job_id: str,
     request: Request,
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user)
 ):
     job = await DownloadJob.get(job_id)
     if not job or not check_job_access(job, current_user, request):
@@ -266,8 +264,8 @@ async def get_download(
 async def stream_progress(
     job_id: str,
     request: Request,
-    ticket: Optional[str] = None,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    ticket: str | None = None,
+    current_user: User | None = Depends(get_optional_current_user),
 ) -> EventSourceResponse:
     if "token" in request.query_params and not ticket:
         logger.warning(f"Deprecated ?token= on file/stream for job {job_id}")
@@ -353,7 +351,7 @@ async def create_download_ticket_for_job(
     job_id: str,
     request: Request,
     scope: str = "file",
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     if scope not in ("file", "stream"):
         raise HTTPException(400, "Invalid scope")
@@ -378,8 +376,8 @@ async def create_download_ticket_for_job(
 async def download_file(
     job_id: str,
     request: Request,
-    ticket: Optional[str] = None,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    ticket: str | None = None,
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     if "token" in request.query_params and not ticket:
         logger.warning(f"Deprecated ?token= on file/stream for job {job_id}")
@@ -418,14 +416,14 @@ async def download_file(
 async def delete_download(
     job_id: str,
     request: Request,
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user)
 ):
     job = await DownloadJob.get(job_id)
     if not job or not check_job_access(job, current_user, request):
         raise HTTPException(404, "Not found")
 
     cancel_job(str(job.id))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     active_statuses = [
         JobStatus.PENDING,

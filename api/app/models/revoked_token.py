@@ -1,6 +1,8 @@
-from beanie import Document, Indexed
 from datetime import datetime
+
+from beanie import Document, Indexed
 from pydantic import Field
+
 
 class RevokedToken(Document):
     token: Indexed(str, unique=True)
